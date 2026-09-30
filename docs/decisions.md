@@ -5,6 +5,65 @@ Why + what bit us while building. The **design of record** is
 [delivery-plan.md](delivery-plan.md) is the build order. This file records
 decisions made *during* the build and the gotchas the code hit.
 
+## Scale pass — chunked sitemaps, streaming rebuild (built 2026-09-30)
+
+Trigger: "what happens with 500 / 10k jobs?" Measured before changing
+anything (throwaway probe, MariaDB test DB): at 50,000 pages an unchanged
+rebuild used **191 MB** and one sitemap file **155 MB**, so PHP's default
+128 MB would fail around 30,000 pages, well before the sitemap protocol's
+50,000-URL limit.
+
+**Decisions**
+
+- **Sitemaps are split into numbered files past `Seo.sitemap.pageSize`**
+  (default 10,000; config in the host's `Seo` block). The first chunk keeps the
+  plain name (`/sitemap-job-postings.xml`) so a site that never outgrows one
+  file sees no change; later chunks are `-2`, `-3`… . Chunks are ordered by
+  path; every chunk is listed in the index with its own newest `lastmod`.
+  Chunk 1 is never `-1`, chunk 0 and chunks past the end are 404. The route
+  pattern already allowed the suffix. Known limit: a subject whose slug ends
+  in `-2` could collide with another subject's second chunk (exact match wins).
+- **Sitemap queries are lean:** plain rows with only `path`/`lastmod`
+  (`disableHydration`), the index from one `COUNT`/`MAX` `GROUP BY`. Memory is
+  flat: ~9–10 MB at 10k and at 50k pages (was 31 / 155 MB).
+- **`TableSubject::rows()` streams** in primary-key order, `chunkSize` (500) rows
+  per query, keyset paging (`pk > last`) — no `OFFSET` scan, nothing skipped or
+  repeated. It overrides the subject's own ordering (e.g. a finder's
+  `ORDER BY published_at`) so the order is deterministic; that also makes "first
+  claim wins" on a path conflict deterministic.
+- **The rebuild compares checksums, not columns.** New `seo_pages.checksum`
+  (sha1 of path, title, description, robots, whole-second lastmod, JSON-LD). The
+  run starts from a small index of what is stored (id, subject, path, status,
+  checksum) instead of every row, and each subject row is written or skipped
+  before the next is read. Rows stored before the column existed have no
+  checksum, so the first rebuild after the migration rewrites each once.
+- **Path uniqueness is tracked in memory during the rebuild** (path → owner),
+  so saves use `checkRules => false` (one query fewer per row); the unique
+  index remains the backstop. A page that wants a path still held by a stored
+  page that has not been processed yet is **deferred** to the end of the run,
+  when that page has moved, left or stayed. So a page may now move onto a path
+  another page vacates in the same run, whatever order they are read in. A
+  true swap (a→b's path while b→a's) is still reported as two conflicts.
+
+**Measured after** (same probe): unchanged rebuild at 50k pages 54 MB / 0.2 s
+(was 191 MB / 0.9 s); at 10k 12 MB (was 40). First fill is unchanged at about
+0.7 ms per page (37 s for 50k) — a one-off.
+
+**Honest limit:** the rebuild is not flat. It still keeps the small index
+above (about 1 KB per page), so memory grows linearly: 12 MB at 10k, 54 MB at
+50k, roughly 110 MB near 100k — that is where PHP's default 128 MB would bite
+again. Fixing that needs the comparison done in SQL, not worth it before a
+site has that many pages.
+
+**Gotchas**
+
+- **Cake caches table schemas, and silently drops columns it does not know
+  when saving.** After the `checksum` migration the test/dev schema cache still
+  described the old table, so `checksum` was never written and every rebuild
+  reported "updated". `bin/cake schema_cache clear` (or `bin/cake cache
+  clear_all`) after running a migration that adds columns; a fresh CI database
+  is unaffected. Deploys: run it after `migrations migrate`.
+
 ## F2 — sitemap (built 2026-09-30)
 
 **Decisions**
@@ -31,8 +90,8 @@ decisions made *during* the build and the gotchas the code hit.
   plugin's `composer.json` requires `ext-xmlwriter`), not a Cake XML view —
   those returned the wrong content type on Cake 5. Response type is
   `application/xml`.
-- **Deliberately not built:** splitting a subject over 50,000 URLs, and HTTP
-  caching headers. Add either when a site needs it.
+- **Deliberately not built:** HTTP caching headers. (Splitting large subjects
+  into numbered files was added in the scale pass above.)
 
 **Gotchas**
 

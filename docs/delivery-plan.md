@@ -39,7 +39,7 @@ Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F
 | # | Feature | Delivers | Fixes | Depends on | Size | Status |
 |---|---|---|---|---|---|---|
 | F1 | Page index | `seo_pages` table filled by `bin/cake seo rebuild` from subjects | — (foundation) | — | M | **built** |
-| F2 | Sitemap | `/sitemap.xml` + `/sitemap-index.xml` from live rows | G1 | F1 | S | **built** (uncommitted) |
+| F2 | Sitemap | `/sitemap.xml` + `/sitemap-index.xml` from live rows; numbered files past `pageSize` | G1 | F1 | S | **built** |
 | F3 | Static pages | `StaticPageSubject` — home/about/contact/careers index in the index and sitemap (apply pages are per job and `noindex`, so not listed) | G1 (complete) | F1, F2 | S | planned |
 | F4 | Head helper | `$this->Seo->head()` prints title, canonical, robots, OG, Twitter from the row | G3 | F1, F3 | M | planned |
 | F5 | Structured data | JSON-LD built by subjects, stored, rendered as one `@graph`; `JobPosting` live on careers pages | G2 | F4 | M | planned |
@@ -113,8 +113,9 @@ string even for integer keys; composite primary keys are unsupported (A5).
 - Absolute URLs built from the configured host (paths are stored relative,
   A7).
 
-**Out of scope:** static pages (F3), generated `robots.txt` (F7), chunking
-beyond 50,000 URLs per file (add only if a site ever needs it).
+**Out of scope:** static pages (F3), generated `robots.txt` (F7). (Splitting a
+subject into numbered files past `Seo.sitemap.pageSize` was added afterwards —
+see `decisions.md`, scale pass.)
 
 **Done when:** `curl -I /sitemap-index.xml` → 200 `application/xml`; the
 listed job URLs match published postings exactly; an unpublished posting

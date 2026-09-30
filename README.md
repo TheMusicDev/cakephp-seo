@@ -51,7 +51,11 @@ The class lives in the host because URLs are host knowledge (design doc A3).
 `bin/cake seo rebuild` rebuilds the `seo_pages` index from the subjects: creates
 missing pages, updates changed ones, marks pages that are no longer public
 `gone`. Run it on deploy and nightly. Running it twice changes nothing. It exits
-non-zero when two pages claim the same path (the first one wins).
+non-zero when two pages claim the same path (the first one wins). It streams
+subject rows and skips unchanged pages by checksum: about 54 MB and 0.2 s for
+50,000 unchanged pages. After a migration that adds columns, run
+`bin/cake schema_cache clear` (Cake silently ignores columns its cached schema
+does not know).
 
 ## Tests
 
@@ -66,6 +70,15 @@ run: `/sitemap-index.xml` (also `/sitemap.xml`) lists one file per subject with
 live pages, e.g. `/sitemap-job-postings.xml`. A page that stops being public
 leaves the sitemap on the next rebuild. Point `robots.txt` at
 `/sitemap-index.xml`.
+
+A subject with more than `Seo.sitemap.pageSize` pages (default 10,000; the
+protocol allows 50,000) is split: the first file keeps the plain name, the rest
+are `/sitemap-job-postings-2.xml`, `-3.xml`…, all listed in the index. Sitemaps
+are built from plain rows, so memory stays flat at any size.
+
+```php
+'Seo' => ['sitemap' => ['pageSize' => 10000]],   // host config/app.php, optional
+```
 
 ## Gotchas
 

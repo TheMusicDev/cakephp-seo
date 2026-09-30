@@ -346,6 +346,8 @@ rebuild does the first fill; migrations only create the tables.
 
 ## 10. Gotchas and limits (design-level)
 
+- **Memory of the rebuild is linear in the number of pages** (~1 KB per page:
+  54 MB at 50,000 pages). Sitemaps are flat. See `decisions.md`, scale pass.
 - **Sitemap staleness between rebuilds.** Nothing updates the page rows in
   real time by default. An unpublished posting stays listed, and a changed
   slug 404s its old URL, until the next rebuild or sync. Mitigations: rebuild
