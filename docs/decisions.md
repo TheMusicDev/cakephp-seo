@@ -5,6 +5,35 @@ Why + what bit us while building. The **design of record** is
 [delivery-plan.md](delivery-plan.md) is the build order. This file records
 decisions made *during* the build and the gotchas the code hit.
 
+## F3 — static pages (built 2026-09-30)
+
+**Decisions**
+
+- **`StaticPageSubject` is an abstract base in the plugin; the host extends it**
+  (`App\Seo\StaticPagesSubject`) and lists every page in one `pages()` array,
+  `id => PageData`. It is registered in `Seo.subjects` under the free key
+  `static` (so its sitemap is `/sitemap-static.xml`). Same table, same rebuild,
+  same sitemap as any subject — nothing special-cased (A11).
+- **Pages are `StaticPageRow(id, page)` objects**, not loose arrays, so the
+  subject's `idOf()`/`toPage()` are type-checked and a wrong row fails loudly.
+- **No constructor.** The indexer builds subjects with `new $class($key)`; PHP
+  ignores the extra argument for a class that has no constructor, and PHPStan
+  rejected an unused `$key` parameter.
+- **No `lastmod`** for static pages (they have no modified date); the sitemap
+  omits it rather than inventing one.
+- **Apply pages are not listed:** they are per job, `noindex`, and not
+  worth a sitemap entry. The careers *index* (`/careers/`) is.
+- **Drift guard:** titles and descriptions currently exist in both the
+  controllers and `StaticPagesSubject`. `StaticPagesSubjectTest` renders each
+  page and fails if the `<title>` or meta description differ from the subject's.
+  F4 removes the duplication by making the subject the source.
+
+**Found while building (pre-existing, not fixed here):** the layout's canonical
+tag echoes the requested URL. `/about` and `/about/` both return 200 and each
+names itself canonical, so every page has two indexable URLs, while the
+sitemap and stored paths use the trailing-slash form (Astro parity). Recorded
+as open question Q9 in the design doc.
+
 ## Scale pass — chunked sitemaps, streaming rebuild (built 2026-09-30)
 
 Trigger: "what happens with 500 / 10k jobs?" Measured before changing

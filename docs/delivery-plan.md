@@ -6,7 +6,7 @@ something you can see. The *what* and *why* live in
 [`seo-plugin-design.md`](seo-plugin-design.md) (A = agreed decision, G = gap,
 S = solution, D = deferred); this file is only the *order and slicing*.
 
-Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8, F2 and F3 kept as separate changes). F1 and F2 are built (see `decisions.md`); the rest is planned.
+Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8, F2 and F3 kept as separate changes). F1–F3 are built (see `decisions.md`); the rest is planned.
 
 ## 1. Principles
 
@@ -40,7 +40,7 @@ Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F
 |---|---|---|---|---|---|---|
 | F1 | Page index | `seo_pages` table filled by `bin/cake seo rebuild` from subjects | — (foundation) | — | M | **built** |
 | F2 | Sitemap | `/sitemap.xml` + `/sitemap-index.xml` from live rows; numbered files past `pageSize` | G1 | F1 | S | **built** |
-| F3 | Static pages | `StaticPageSubject` — home/about/contact/careers index in the index and sitemap (apply pages are per job and `noindex`, so not listed) | G1 (complete) | F1, F2 | S | planned |
+| F3 | Static pages | `StaticPageSubject` — home/about/contact/careers index in the index and sitemap (apply pages are per job and `noindex`, so not listed) | G1 (complete) | F1, F2 | S | **built** (uncommitted) |
 | F4 | Head helper | `$this->Seo->head()` prints title, canonical, robots, OG, Twitter from the row | G3 | F1, F3 | M | planned |
 | F5 | Structured data | JSON-LD built by subjects, stored, rendered as one `@graph`; `JobPosting` live on careers pages | G2 | F4 | M | planned |
 | F6 | Redirects & 410 | old paths 301, removed pages 410, via plugin middleware | G5 | F1 | M | planned |

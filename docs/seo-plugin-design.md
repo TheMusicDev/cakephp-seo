@@ -335,8 +335,18 @@ None.
 
 ## 9. Open questions (need a decision)
 
-None. The design is fully decided; build order is in
-[`delivery-plan.md`](delivery-plan.md).
+- **Q9. Trailing slash and canonical** (found 2026-09-30 while building F3;
+  pre-existing in the host). `/about` and `/about/` both return 200 and the
+  layout's canonical tag *echoes the requested URL*, so each page has two
+  indexable URLs, each claiming itself canonical. The sitemap and the stored
+  paths (A7) use the trailing-slash form, as the Astro site did. Options:
+  **(A)** 301 the non-slash form to the slash form for public GET pages (what the
+  Astro host did); **(B)** the head helper (F4) always emits the slash form as
+  canonical and leaves both URLs serving 200; **(C)** both. Recommendation: A
+  plus B — a redirect removes the duplicate URL, and the helper makes the
+  canonical deterministic instead of request-dependent.
+
+Build order is in [`delivery-plan.md`](delivery-plan.md).
 
 *Closed:* Q1 (store JSON-LD) → A10. Q2 (v1 schema types) → A13. Q3 (redirects
 not tied to a page) → A14, D6. Q4 (static pages) → A11. Q5 (admin override

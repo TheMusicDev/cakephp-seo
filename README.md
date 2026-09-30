@@ -46,6 +46,14 @@ final class JobPostingSubject extends TableSubject
 
 The class lives in the host because URLs are host knowledge (design doc A3).
 
+The site's non-database pages (home, about…) are a subject too: extend
+`StaticPageSubject`, list the pages in `pages()` (`id => PageData`, no `lastmod`),
+and register it under any free key:
+
+```php
+'Seo' => ['subjects' => ['static' => \App\Seo\StaticPagesSubject::class]],
+```
+
 ## Use
 
 `bin/cake seo rebuild` rebuilds the `seo_pages` index from the subjects: creates
