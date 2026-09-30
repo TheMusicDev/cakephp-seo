@@ -6,7 +6,8 @@
     "license": "MIT",
     "require": {
         "php": ">=8.2",
-        "cakephp/cakephp": "^5.2"
+        "cakephp/cakephp": "^5.2",
+        "ext-xmlwriter": "*"
     },
     "autoload": {
         "psr-4": {

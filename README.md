@@ -59,6 +59,14 @@ non-zero when two pages claim the same path (the first one wins).
 test bootstrap migrates the plugin's tables, so add the plugin to its
 `Migrator::runMany()` list).
 
+## Sitemap
+
+Served automatically once the plugin is loaded and `bin/cake seo rebuild` has
+run: `/sitemap-index.xml` (also `/sitemap.xml`) lists one file per subject with
+live pages, e.g. `/sitemap-job-postings.xml`. A page that stops being public
+leaves the sitemap on the next rebuild. Point `robots.txt` at
+`/sitemap-index.xml`.
+
 ## Gotchas
 
 Build-time gotchas are in [`docs/decisions.md`](docs/decisions.md). The one that

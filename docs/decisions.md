@@ -5,6 +5,51 @@ Why + what bit us while building. The **design of record** is
 [delivery-plan.md](delivery-plan.md) is the build order. This file records
 decisions made *during* the build and the gotchas the code hit.
 
+## F2 — sitemap (built 2026-09-30)
+
+**Decisions**
+
+- **URLs:** `/sitemap-index.xml` (what `robots.txt` advertises) and
+  `/sitemap.xml` both serve the index; each subject with live pages gets
+  `/sitemap-{slug}.xml`. Routes ship with the plugin (`config/routes.php` +
+  `$routesEnabled`, same as Files), so a host gets them by loading the plugin.
+- **Child file names come from the subject key** — the last segment, dashed:
+  `TheMusicDev/Recruiting.JobPostings` → `job-postings` (maintainer's
+  choice over Astro's numbered `sitemap-0.xml`, which shifts when subjects are
+  reordered). Two subjects with the same short name, or one called `index`
+  (which would shadow `/sitemap-index.xml`), fall back to the **whole key**
+  dashed (`a-posts`, `blog-index`). The index route is connected first.
+- **Subjects come from the database, not config:** the index lists distinct
+  subjects that have at least one `live` row, so a subject with only `gone`
+  rows has no file (its URL is a 404) and a removed subject disappears after a
+  rebuild.
+- **Absolute URLs** are built with `Router::url($path, true)` from the app's
+  base URL — paths are stored relative (A7), so a domain change needs no
+  rebuild. `lastmod` is W3C/ATOM and omitted when unknown (the index uses each
+  subject's newest page).
+- **XML is written with `XMLWriter`** (values are escaped for free; the
+  plugin's `composer.json` requires `ext-xmlwriter`), not a Cake XML view —
+  those returned the wrong content type on Cake 5. Response type is
+  `application/xml`.
+- **Deliberately not built:** splitting a subject over 50,000 URLs, and HTTP
+  caching headers. Add either when a site needs it.
+
+**Gotchas**
+
+- **Slugs are `Text::slug(Inflector::dasherize($key))`.** `Text::slug()` alone
+  neither splits camel case nor lowercases (`JobPostings` stays
+  `JobPostings`); `dasherize()` alone leaves `/` and `.` in place
+  (`the-music-dev/recruiting.job-postings`). Together they give
+  `job-postings` and `the-music-dev-recruiting-job-postings`. An earlier
+  hand-written helper is gone.
+- **`MAX(lastmod)` is a plain string to the ORM unless typed:** the index query
+  adds `latest => datetime` to the select type map. Verified on both MariaDB
+  and CI's sqlite.
+- **`robots.txt` still advertises `/sitemap-index.xml`** (F7 will generate that
+  file). The host test `tests/TestCase/Seo/RobotsSitemapLinkTest.php` reads the real
+  `webroot/robots.txt` and requests the URL it names, so the original 404 (G1)
+  cannot come back unnoticed.
+
 ## F1 — page index (built 2026-09-30)
 
 **Decisions**

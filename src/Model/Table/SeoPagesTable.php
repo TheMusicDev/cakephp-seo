@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace TheMusicDev\Seo\Model\Table;
 
+use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 
@@ -35,5 +36,16 @@ class SeoPagesTable extends Table
         $rules->add($rules->isUnique(['path'], 'That path is already used by another page.'));
 
         return $rules;
+    }
+
+    /**
+     * Pages that are public right now (everything but `gone`).
+     *
+     * @param \Cake\ORM\Query\SelectQuery<\Cake\Datasource\EntityInterface> $query
+     * @return \Cake\ORM\Query\SelectQuery<\Cake\Datasource\EntityInterface>
+     */
+    public function findLive(SelectQuery $query): SelectQuery
+    {
+        return $query->where([$this->aliasField('status') => self::STATUS_LIVE]);
     }
 }
