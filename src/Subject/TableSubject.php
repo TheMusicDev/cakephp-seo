@@ -23,6 +23,11 @@ abstract class TableSubject implements SubjectInterface
     protected Table $table;
 
     /**
+     * Rows fetched per query by rows().
+     */
+    protected int $chunkSize = 500;
+
+    /**
      * @param string $key The `Seo.subjects` key: the table alias.
      */
     public function __construct(string $key)
@@ -43,12 +48,28 @@ abstract class TableSubject implements SubjectInterface
     abstract protected function pageFor(EntityInterface $row): PageData;
 
     /**
+     * The public rows, read in primary-key order a chunk at a time (keyset
+     * paging) so memory stays flat however many rows there are.
+     *
      * @return iterable<\Cake\Datasource\EntityInterface>
      */
     public function rows(): iterable
     {
-        /** @var iterable<\Cake\Datasource\EntityInterface> */
-        return $this->query($this->table)->all();
+        $primary = $this->primaryKey();
+        $field = $this->table->aliasField($primary);
+        $last = null;
+        do {
+            $query = $this->query($this->table)->orderBy([$field => 'ASC'], true)->limit($this->chunkSize);
+            if ($last !== null) {
+                $query->where([$field . ' >' => $last]);
+            }
+            $count = 0;
+            foreach ($query->all() as $row) {
+                $last = $row->get($primary);
+                $count++;
+                yield $row;
+            }
+        } while ($count === $this->chunkSize);
     }
 
     /**
@@ -56,12 +77,7 @@ abstract class TableSubject implements SubjectInterface
      */
     public function idOf(object $row): string
     {
-        $primary = $this->table->getPrimaryKey();
-        if (!is_string($primary)) {
-            throw new LogicException('Composite primary keys are not supported by TableSubject.');
-        }
-
-        return (string)$this->entity($row)->get($primary);
+        return (string)$this->entity($row)->get($this->primaryKey());
     }
 
     /**
@@ -70,6 +86,19 @@ abstract class TableSubject implements SubjectInterface
     public function toPage(object $row): PageData
     {
         return $this->pageFor($this->entity($row));
+    }
+
+    /**
+     * The single primary-key column.
+     */
+    private function primaryKey(): string
+    {
+        $primary = $this->table->getPrimaryKey();
+        if (!is_string($primary)) {
+            throw new LogicException('Composite primary keys are not supported by TableSubject.');
+        }
+
+        return $primary;
     }
 
     /**

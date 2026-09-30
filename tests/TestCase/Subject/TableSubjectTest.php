@@ -61,6 +61,23 @@ final class TableSubjectTest extends TestCase
         $this->assertSame((string)$live, (new PagesTableSubject(self::ALIAS))->idOf($rows[0]));
     }
 
+    public function testRowsAreStreamedInChunksInPrimaryKeyOrderWithNoneSkippedOrRepeated(): void
+    {
+        $ids = [];
+        foreach (['a', 'b', 'c', 'd', 'e'] as $name) {
+            $ids[] = $this->seed($name, 'live'); // chunk size is 2: three queries
+        }
+        $this->seed('x', 'gone');
+
+        $subject = new PagesTableSubject(self::ALIAS);
+        $seen = [];
+        foreach ($subject->rows() as $row) {
+            $seen[] = (int)$subject->idOf($row);
+        }
+
+        $this->assertSame($ids, $seen);
+    }
+
     public function testIdIsThePrimaryKeyAsAString(): void
     {
         $id = $this->seed('a', 'live');

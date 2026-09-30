@@ -24,6 +24,13 @@ final class ArraySubject implements SubjectInterface
      */
     public static ?DateTimeInterface $lastmod = null;
 
+    /**
+     * Applied to every page as its JSON-LD nodes.
+     *
+     * @var list<array<string, mixed>>|null
+     */
+    public static ?array $schema = null;
+
     public function __construct(private string $key)
     {
     }
@@ -32,6 +39,7 @@ final class ArraySubject implements SubjectInterface
     {
         self::$pages = [];
         self::$lastmod = null;
+        self::$schema = null;
     }
 
     /**
@@ -51,6 +59,6 @@ final class ArraySubject implements SubjectInterface
 
     public function toPage(object $row): PageData
     {
-        return new PageData(path: $row->path, title: 'Page ' . $row->id, lastmod: self::$lastmod);
+        return new PageData(path: $row->path, title: 'Page ' . $row->id, lastmod: self::$lastmod, schema: self::$schema);
     }
 }

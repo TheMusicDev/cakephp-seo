@@ -15,6 +15,8 @@ use TheMusicDev\Seo\Subject\TableSubject;
  */
 final class PagesTableSubject extends TableSubject
 {
+    protected int $chunkSize = 2;
+
     /**
      * @return \Cake\ORM\Query\SelectQuery<\Cake\Datasource\EntityInterface>
      */

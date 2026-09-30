@@ -158,4 +158,56 @@ final class PageIndexerTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         (new PageIndexer())->rebuild(['x' => stdClass::class]);
     }
+
+    public function testAChangedTitleOrSchemaIsDetectedButAnUnchangedPageIsNot(): void
+    {
+        ArraySubject::$pages = ['s' => ['a' => '/a/']];
+        ArraySubject::$schema = [['@type' => 'Thing', 'name' => 'One']];
+        $this->rebuild();
+
+        $this->assertSame(1, $this->rebuild()['subjects']['s']['unchanged']);
+
+        ArraySubject::$schema = [['@type' => 'Thing', 'name' => 'Two']];
+        $report = $this->rebuild();
+
+        $this->assertSame(1, $report['subjects']['s']['updated']);
+        $this->assertSame(1, $this->rebuild()['subjects']['s']['unchanged']);
+    }
+
+    public function testRowsStoredBeforeTheChecksumExistedAreRewrittenOnceThenLeftAlone(): void
+    {
+        ArraySubject::$pages = ['s' => ['a' => '/a/']];
+        $this->rebuild();
+        $this->pages->updateAll(['checksum' => null], []); // as after the upgrade migration
+
+        $this->assertSame(1, $this->rebuild()['subjects']['s']['updated']);
+        $this->assertSame(1, $this->rebuild()['subjects']['s']['unchanged']);
+    }
+
+    public function testAPageMayMoveOntoAPathAnotherPageIsLeavingInTheSameRun(): void
+    {
+        ArraySubject::$pages = ['s' => ['a' => '/a/', 'b' => '/b/']];
+        $this->rebuild();
+
+        // b is read first and wants /a/, which a still holds until it moves to /c/.
+        ArraySubject::$pages = ['s' => ['b' => '/a/', 'a' => '/c/']];
+        $report = $this->rebuild();
+
+        $this->assertSame([], $report['conflicts']);
+        $this->assertSame('/c/', $this->pages->find()->where(['subject_id' => 'a'])->firstOrFail()->path);
+        $this->assertSame('/a/', $this->pages->find()->where(['subject_id' => 'b'])->firstOrFail()->path);
+    }
+
+    public function testTwoPagesSwappingPathsAreReportedAndNothingChanges(): void
+    {
+        ArraySubject::$pages = ['s' => ['a' => '/a/', 'b' => '/b/']];
+        $this->rebuild();
+
+        ArraySubject::$pages = ['s' => ['a' => '/b/', 'b' => '/a/']];
+        $report = $this->rebuild();
+
+        $this->assertCount(2, $report['conflicts']);
+        $this->assertSame('/a/', $this->pages->find()->where(['subject_id' => 'a'])->firstOrFail()->path);
+        $this->assertSame('/b/', $this->pages->find()->where(['subject_id' => 'b'])->firstOrFail()->path);
+    }
 }
