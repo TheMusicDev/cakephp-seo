@@ -1,0 +1,33 @@
+<?php
+declare(strict_types=1);
+
+namespace TheMusicDev\Seo\Subject;
+
+use DateTimeInterface;
+
+/**
+ * What a subject says about one public page. `path` is the canonical path
+ * (no scheme or host, trailing slash exactly as the canonical tag emits it).
+ * Later features add fields (og type/image, redirectsFrom) with defaults, so
+ * existing subjects keep working.
+ */
+final readonly class PageData
+{
+    /**
+     * @param string $path Canonical path, e.g. `/careers/some-role/`.
+     * @param string $title Page title.
+     * @param string|null $description Meta description.
+     * @param \DateTimeInterface|null $lastmod Last change, for the sitemap; null when unknown.
+     * @param string|null $robots Robots meta value, e.g. `noindex`.
+     * @param list<array<string, mixed>>|null $schema JSON-LD nodes (used by the structured-data feature).
+     */
+    public function __construct(
+        public string $path,
+        public string $title,
+        public ?string $description = null,
+        public ?DateTimeInterface $lastmod = null,
+        public ?string $robots = null,
+        public ?array $schema = null,
+    ) {
+    }
+}

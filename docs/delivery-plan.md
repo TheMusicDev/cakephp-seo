@@ -6,7 +6,7 @@ something you can see. The *what* and *why* live in
 [`seo-plugin-design.md`](seo-plugin-design.md) (A = agreed decision, G = gap,
 S = solution, D = deferred); this file is only the *order and slicing*.
 
-Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8, F2 and F3 kept as separate changes). Nothing is built yet.
+Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8, F2 and F3 kept as separate changes). F1 is built (see `decisions.md`); the rest is planned.
 
 ## 1. Principles
 
@@ -22,8 +22,12 @@ Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F
 
 **Definition of done (every feature):**
 
-1. Tests for the new logic (plugin tests live in the host's `tests/`, like
-   Recruiting's; MariaDB test DB, children-first `deleteAll([])` in setUp).
+1. Tests for the new logic. **Plugin behavior is tested in the plugin**
+   (`plugins/TheMusicDev/Seo/tests/`, own `--testsuite seo`, nothing there may
+   depend on the host or another plugin — use the test subjects in
+   `tests/Subject/`). Host classes (e.g. `App\Seo\JobPostingSubject`) are
+   tested in the host's `tests/`. MariaDB test DB, children-first
+   `deleteAll([])` in setUp.
 2. `composer check` green (phpcs, phpstan level 8, phpunit).
 3. Curl/browser check of the visible result on the dev server.
 4. Docs updated: this file's status column, the design doc if a decision
@@ -32,16 +36,16 @@ Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F
 
 ## 2. Overview
 
-| # | Feature | Delivers | Fixes | Depends on | Size |
-|---|---|---|---|---|---|
-| F1 | Page index | `seo_pages` table filled by `bin/cake seo rebuild` from subjects | — (foundation) | — | M |
-| F2 | Sitemap | `/sitemap.xml` + `/sitemap-index.xml` from live rows | G1 | F1 | S |
-| F3 | Static pages | `StaticPageSubject` — home/about/contact/careers/apply in the index and sitemap | G1 (complete) | F1, F2 | S |
-| F4 | Head helper | `$this->Seo->head()` prints title, canonical, robots, OG, Twitter from the row | G3 | F1, F3 | M |
-| F5 | Structured data | JSON-LD built by subjects, stored, rendered as one `@graph`; `JobPosting` live on careers pages | G2 | F4 | M |
-| F6 | Redirects & 410 | old paths 301, removed pages 410, via plugin middleware | G5 | F1 | M |
-| F7 | robots.txt | generated from config, non-prod disallow-all | G4 | F2 | S |
-| F8 | Sync command | `bin/cake seo sync <subject> <id>` for `Queue.Execute` | — | F1 | S |
+| # | Feature | Delivers | Fixes | Depends on | Size | Status |
+|---|---|---|---|---|---|---|
+| F1 | Page index | `seo_pages` table filled by `bin/cake seo rebuild` from subjects | — (foundation) | — | M | **built** (uncommitted) |
+| F2 | Sitemap | `/sitemap.xml` + `/sitemap-index.xml` from live rows | G1 | F1 | S | planned |
+| F3 | Static pages | `StaticPageSubject` — home/about/contact/careers/apply in the index and sitemap | G1 (complete) | F1, F2 | S | planned |
+| F4 | Head helper | `$this->Seo->head()` prints title, canonical, robots, OG, Twitter from the row | G3 | F1, F3 | M | planned |
+| F5 | Structured data | JSON-LD built by subjects, stored, rendered as one `@graph`; `JobPosting` live on careers pages | G2 | F4 | M | planned |
+| F6 | Redirects & 410 | old paths 301, removed pages 410, via plugin middleware | G5 | F1 | M | planned |
+| F7 | robots.txt | generated from config, non-prod disallow-all | G4 | F2 | S | planned |
+| F8 | Sync command | `bin/cake seo sync <subject> <id>` for `Queue.Execute` | — | F1 | S | planned |
 
 Sizes: S ≈ a focused sitting, M ≈ a day or so, no estimate promised.
 

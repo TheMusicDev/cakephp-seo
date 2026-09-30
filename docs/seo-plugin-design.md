@@ -94,7 +94,8 @@ below true.
 - **A4. One subject class per subject, no behaviors.** The class lives in the
   host and has two jobs: `query()` returns the public rows (it knows about
   `deleted_at`, `published`, or whatever that table uses), and
-  `toPage($row)` turns one row into a page (path, title, description,
+  `toPage($row)` (for table-backed subjects, `pageFor(EntityInterface $row)`
+  on the `TableSubject` base) turns one row into a page (path, title, description,
   lastmod, robots, JSON-LD). Underneath, the interface is not tied to a
   table — a subject supplies `rows()`, an id per row, and `toPage($row)` — so
   static pages fit (A11). A `TableSubject` base class covers the common case:
@@ -116,7 +117,7 @@ below true.
           return $table->find('published');
       }
 
-      public function toPage(EntityInterface $row): PageData
+      protected function pageFor(EntityInterface $row): PageData
       {
           return new PageData(
               path: '/careers/' . $row->slug . '/',

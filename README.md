@@ -1,7 +1,8 @@
 # TheMusicDev/Seo
 
-> **Status: scaffold.** The plugin loads and does nothing yet. What it will do,
-> what we have agreed and what is still open is tracked in
+> **Status: in build.** F1 (page index) is done; sitemap, head tags, structured
+> data and redirects follow. What is agreed, what is open and the build order are
+> tracked in
 > [`docs/seo-plugin-design.md`](docs/seo-plugin-design.md) — read that first.
 > Build order and feature slices: [`docs/delivery-plan.md`](docs/delivery-plan.md).
 
@@ -14,15 +15,50 @@ them together through config.
 
 1. composer path repo + `require themusicdev/cakephp-seo ^0.1`
 2. `config/plugins.php`: `'TheMusicDev/Seo' => []`
+3. `bin/cake migrations migrate -p TheMusicDev/Seo` (and again with
+   `--connection test` for the test database)
 
 ## Configure (host `config/app.php`)
 
 ```php
-'Seo' => ['subjects' => []],   // which tables are public pages — design doc, A3
+'Seo' => ['subjects' => [
+    // subject key (a table alias for table-backed subjects) => host subject class
+    'TheMusicDev/Recruiting.JobPostings' => \App\Seo\JobPostingSubject::class,
+]],
 ```
 
-Host values win over `config/app_default.php`.
+Host values win over `config/app_default.php`. A **subject** is a host class
+that says which rows are public pages and how one row becomes a page (path,
+title, description, lastmod). Table-backed subjects extend `TableSubject` and
+implement two methods:
+
+```php
+final class JobPostingSubject extends TableSubject
+{
+    protected function query(Table $table): SelectQuery { return $table->find('published'); }
+
+    protected function pageFor(EntityInterface $row): PageData
+    {
+        return new PageData(path: '/careers/' . $row->get('slug') . '/', title: $row->get('title'));
+    }
+}
+```
+
+The class lives in the host because URLs are host knowledge (design doc A3).
+
+## Use
+
+`bin/cake seo rebuild` rebuilds the `seo_pages` index from the subjects: creates
+missing pages, updates changed ones, marks pages that are no longer public
+`gone`. Run it on deploy and nightly. Running it twice changes nothing. It exits
+non-zero when two pages claim the same path (the first one wins).
+
+## Tests
+
+`vendor/bin/phpunit --testsuite seo` (plugin tests live in `tests/`; they need
+the `seo_pages` table on the test database — migrate it first, see Install).
 
 ## Gotchas
 
-None yet.
+Build-time gotchas are in [`docs/decisions.md`](docs/decisions.md). The one that
+bites first: plugin tables must be migrated on the dev **and** test databases.
