@@ -52,12 +52,12 @@ final class ArraySubject implements SubjectInterface
         }
     }
 
-    public function idOf(object $row): string
+    public function idOf(mixed $row): string
     {
         return $row->id;
     }
 
-    public function toPage(object $row): PageData
+    public function toPage(mixed $row): PageData
     {
         return new PageData(path: $row->path, title: 'Page ' . $row->id, lastmod: self::$lastmod, schema: self::$schema);
     }

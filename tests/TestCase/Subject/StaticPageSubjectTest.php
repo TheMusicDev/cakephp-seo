@@ -48,7 +48,7 @@ final class StaticPageSubjectTest extends TestCase
         return (new PageIndexer())->rebuild(['static' => FixedPagesSubject::class]);
     }
 
-    public function testRowsAreThePagesKeyedByTheirStringIds(): void
+    public function testRowsAreThePageIdsAndEachResolvesToItsPage(): void
     {
         $subject = new FixedPagesSubject('static');
 
@@ -61,10 +61,10 @@ final class StaticPageSubjectTest extends TestCase
         $this->assertSame(['home', 'about'], $ids);
     }
 
-    public function testARowThatIsNotAStaticPageRowIsRejected(): void
+    public function testAnUnknownPageIdIsRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        (new FixedPagesSubject('static'))->idOf((object)['id' => 'x']);
+        (new FixedPagesSubject('static'))->toPage('nope');
     }
 
     public function testThePagesBecomeLiveRowsUnderTheSubjectKey(): void

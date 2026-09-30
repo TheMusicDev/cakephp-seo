@@ -14,8 +14,12 @@ decisions made *during* the build and the gotchas the code hit.
   `id => PageData`. It is registered in `Seo.subjects` under the free key
   `static` (so its sitemap is `/sitemap-static.xml`). Same table, same rebuild,
   same sitemap as any subject — nothing special-cased (A11).
-- **Pages are `StaticPageRow(id, page)` objects**, not loose arrays, so the
-  subject's `idOf()`/`toPage()` are type-checked and a wrong row fails loudly.
+- **A row is just the page's id.** `SubjectInterface` treats rows as opaque
+  (`mixed`): the indexer never looks inside one, it only hands it back to
+  `idOf()` / `toPage()`. So the static subject yields its ids and looks the page
+  up (`toPage('nope')` throws), while `TableSubject` still insists on an entity.
+  An earlier cut wrapped each page in a `StaticPageRow` value object; it carried
+  nothing the id does not, so it was removed.
 - **No constructor.** The indexer builds subjects with `new $class($key)`; PHP
   ignores the extra argument for a class that has no constructor, and PHPStan
   rejected an unused `$key` parameter.

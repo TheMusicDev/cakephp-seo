@@ -11,21 +11,27 @@ namespace TheMusicDev\Seo\Subject;
 interface SubjectInterface
 {
     /**
-     * Every row that is public right now. Rows that stop appearing here are
-     * marked gone by the rebuild.
+     * Every row that is public right now. A row can be anything (an entity, an
+     * id…): the indexer never looks inside one, it only hands it back to
+     * `idOf()` and `toPage()`. Rows that stop appearing here are marked gone by
+     * the rebuild.
      *
-     * @return iterable<object>
+     * @return iterable<mixed>
      */
     public function rows(): iterable;
 
     /**
      * Stable id of a row within this subject (a primary key, or a fixed string
      * for static pages). Stored as a string.
+     *
+     * @param mixed $row A row from `rows()`.
      */
-    public function idOf(object $row): string;
+    public function idOf(mixed $row): string;
 
     /**
      * Turn one row into a page.
+     *
+     * @param mixed $row A row from `rows()`.
      */
-    public function toPage(object $row): PageData;
+    public function toPage(mixed $row): PageData;
 }

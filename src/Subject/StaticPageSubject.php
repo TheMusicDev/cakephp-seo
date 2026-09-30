@@ -9,15 +9,20 @@ use InvalidArgumentException;
  * Base for a site's non-database pages (home, about, contact…), design doc A11.
  * The host extends it and lists the pages in `pages()` — one array, one place —
  * and registers the class in `Seo.subjects` under any free key (e.g. `static`).
- * It has no constructor: the indexer's `new $class($key)` simply ignores the key.
  * The rebuild upserts the list into `seo_pages` like any other subject, so a
- * page removed from the array is marked gone.
+ * page removed from the array is marked gone. A row is just the page's id.
  *
  * Static pages have no modified date: leave `lastmod` out and the sitemap omits
- * it (a made-up date is worse than none).
+ * it (a made-up date is worse than none). It has no constructor: the indexer's
+ * `new $class($key)` simply ignores the key.
  */
 abstract class StaticPageSubject implements SubjectInterface
 {
+    /**
+     * @var array<string, \TheMusicDev\Seo\Subject\PageData>|null
+     */
+    private ?array $list = null;
+
     /**
      * Every static page, keyed by a stable string id (`home`, `about`…). The id
      * identifies the page across rebuilds, so renaming an id is a new page.
@@ -27,40 +32,39 @@ abstract class StaticPageSubject implements SubjectInterface
     abstract protected function pages(): array;
 
     /**
-     * @return iterable<\TheMusicDev\Seo\Subject\StaticPageRow>
+     * @return iterable<string>
      */
     public function rows(): iterable
     {
-        foreach ($this->pages() as $id => $page) {
-            yield new StaticPageRow((string)$id, $page);
+        foreach (array_keys($this->list()) as $id) {
+            yield (string)$id;
         }
     }
 
     /**
      * @inheritDoc
      */
-    public function idOf(object $row): string
+    public function idOf(mixed $row): string
     {
-        return $this->row($row)->id;
+        return (string)$row;
     }
 
     /**
      * @inheritDoc
      */
-    public function toPage(object $row): PageData
+    public function toPage(mixed $row): PageData
     {
-        return $this->row($row)->page;
+        return $this->list()[(string)$row]
+            ?? throw new InvalidArgumentException('Unknown static page id: ' . (string)$row);
     }
 
     /**
-     * Narrow a row to a StaticPageRow or fail loudly.
+     * The page list, built once per instance.
+     *
+     * @return array<string, \TheMusicDev\Seo\Subject\PageData>
      */
-    private function row(object $row): StaticPageRow
+    private function list(): array
     {
-        if (!$row instanceof StaticPageRow) {
-            throw new InvalidArgumentException('StaticPageSubject rows must be StaticPageRow objects.');
-        }
-
-        return $row;
+        return $this->list ??= $this->pages();
     }
 }

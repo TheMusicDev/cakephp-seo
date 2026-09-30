@@ -75,7 +75,7 @@ abstract class TableSubject implements SubjectInterface
     /**
      * @inheritDoc
      */
-    public function idOf(object $row): string
+    public function idOf(mixed $row): string
     {
         return (string)$this->entity($row)->get($this->primaryKey());
     }
@@ -83,7 +83,7 @@ abstract class TableSubject implements SubjectInterface
     /**
      * @inheritDoc
      */
-    public function toPage(object $row): PageData
+    public function toPage(mixed $row): PageData
     {
         return $this->pageFor($this->entity($row));
     }
@@ -104,7 +104,7 @@ abstract class TableSubject implements SubjectInterface
     /**
      * Narrow a row to an entity or fail loudly.
      */
-    private function entity(object $row): EntityInterface
+    private function entity(mixed $row): EntityInterface
     {
         if (!$row instanceof EntityInterface) {
             throw new InvalidArgumentException('TableSubject rows must be entities.');
