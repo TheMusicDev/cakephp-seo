@@ -1,0 +1,16 @@
+{
+    "name": "themusicdev/cakephp-seo",
+    "description": "All-in-one SEO for TheMusicDev CakePHP sites: page meta, structured data, sitemap, redirects",
+    "type": "cakephp-plugin",
+    "version": "0.1.0",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "cakephp/cakephp": "^5.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "TheMusicDev\\Seo\\": "src/"
+        }
+    }
+}
