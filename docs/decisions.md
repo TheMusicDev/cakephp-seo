@@ -35,8 +35,10 @@ decisions made *during* the build and the gotchas the code hit.
 **Found while building (pre-existing, not fixed here):** the layout's canonical
 tag echoes the requested URL. `/about` and `/about/` both return 200 and each
 names itself canonical, so every page has two indexable URLs, while the
-sitemap and stored paths use the trailing-slash form (Astro parity). Recorded
-as open question Q9 in the design doc.
+sitemap and stored paths used the trailing-slash form (Astro parity). Resolved
+the same day (design Q9): the host's canonical form is slash-free and its
+`TheMusicDev/TrailingSlash` plugin 301s the other; the subjects now build paths
+from named routes instead of typing them.
 
 ## Scale pass — chunked sitemaps, streaming rebuild (built 2026-09-30)
 

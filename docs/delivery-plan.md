@@ -164,7 +164,7 @@ per-page type/image support (G3).
 **Done when:** the rendered `<head>` of home, about, contact, careers index,
 a job page and a 404 is **diffed before and after** and only intended
 differences remain (job page `og:type`; no lost tags). Canonical is still
-correct with a trailing slash.
+correct (slash-free, matching the stored path and the sitemap URL).
 
 **Risks:** the request-path lookup is one query per page view — measure; a
 cache is a later option (A17).

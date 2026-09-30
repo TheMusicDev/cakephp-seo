@@ -71,6 +71,16 @@ does not know).
 test bootstrap migrates the plugin's tables, so add the plugin to its
 `Migrator::runMany()` list).
 
+## URL form
+
+The plugin stores and lists paths **exactly as your subjects return them** and never
+normalizes them. So: pick one URL form (we use no trailing slash), **build every
+path with the router** (`Router::url(['_name' => 'careers.view', 'slug' => $slug])`,
+never typed by hand), and make the host redirect the other form — see
+`TheMusicDev/TrailingSlash`. Redirecting is host policy, not this plugin's job. The one
+rule that matters here: a page's stored path, its sitemap URL and its canonical tag
+must all be the same string. (The host's `AstroUrlMigrationTest` pins that.)
+
 ## Sitemap
 
 Served automatically once the plugin is loaded and `bin/cake seo rebuild` has
