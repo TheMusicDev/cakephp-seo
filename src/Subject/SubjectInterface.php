@@ -6,7 +6,7 @@ namespace TheMusicDev\Seo\Subject;
 /**
  * A source of public pages (design doc A4). Registered in the host's
  * `Seo.subjects` as `key => class`; the indexer builds it with `new $class($key)`,
- * so a subject's constructor must accept the config key.
+ * so a subject's constructor, if it has one, must accept the config key.
  */
 interface SubjectInterface
 {
