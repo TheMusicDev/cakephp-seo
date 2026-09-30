@@ -40,7 +40,7 @@ Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F
 |---|---|---|---|---|---|---|
 | F1 | Page index | `seo_pages` table filled by `bin/cake seo rebuild` from subjects | — (foundation) | — | M | **built** |
 | F2 | Sitemap | `/sitemap.xml` + `/sitemap-index.xml` from live rows | G1 | F1 | S | **built** (uncommitted) |
-| F3 | Static pages | `StaticPageSubject` — home/about/contact/careers/apply in the index and sitemap | G1 (complete) | F1, F2 | S | planned |
+| F3 | Static pages | `StaticPageSubject` — home/about/contact/careers index in the index and sitemap (apply pages are per job and `noindex`, so not listed) | G1 (complete) | F1, F2 | S | planned |
 | F4 | Head helper | `$this->Seo->head()` prints title, canonical, robots, OG, Twitter from the row | G3 | F1, F3 | M | planned |
 | F5 | Structured data | JSON-LD built by subjects, stored, rendered as one `@graph`; `JobPosting` live on careers pages | G2 | F4 | M | planned |
 | F6 | Redirects & 410 | old paths 301, removed pages 410, via plugin middleware | G5 | F1 | M | planned |
@@ -151,6 +151,10 @@ per-page type/image support (G3).
   while pages migrate.
 - `PageData` grows `ogType` and `ogImage` (site default image from host
   config stays the fallback; `og:type` `article` for jobs).
+- Absorb the interim `canonicalUrl` / `robots` view-variable overrides the host
+  layout has today (paginated `/careers?page=N` is self-canonical, filtered
+  lists are `noindex,follow`; query-string variants are not rows in `seo_pages`,
+  design S12).
 - Host: replace the hand-written head tags in `templates/layout/default.php`
   with `$this->Seo->head()`.
 
