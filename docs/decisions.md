@@ -61,12 +61,14 @@ decisions made *during* the build and the gotchas the code hit.
   stored value, so every rebuild reported an "update". `PageIndexer` truncates
   to whole seconds; `testSecondRunChangesNothing` fails without it (checked by
   breaking the truncation on purpose).
-- **Plugin tables must be migrated on both databases:**
-  `bin/cake migrations migrate -p TheMusicDev/Seo` and the same with
-  `--connection test`. The test bootstrap's `Migrator` runs only the app's
-  migrations, so a fresh test/CI database has no plugin tables (pre-existing
-  issue that already breaks CI for Recruiting/Contact/Files; F1 adds one more
-  table to it).
+- **Plugin tables: dev database by hand, test database automatic.** Migrate the
+  dev database with `bin/cake migrations migrate -p TheMusicDev/Seo`. The test
+  database (local MariaDB and CI sqlite) is migrated by `tests/bootstrap.php`,
+  which lists every plugin that owns tables in a `Migrator::runMany()` call —
+  a new plugin with migrations must be added there. (Until 2026-09-30 the
+  bootstrap ran `Migrator::run()`, which migrates only the app: a fresh
+  database had no plugin tables and CI failed with "Cannot describe inquiries.
+  It has 0 columns".)
 - **A path swap between two pages in one rebuild is reported as a conflict**
   and re-running does not resolve it (A moves onto B's old path while B moves
   onto A's). Rare; fix by hand.

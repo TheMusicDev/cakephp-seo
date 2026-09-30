@@ -15,8 +15,8 @@ them together through config.
 
 1. composer path repo + `require themusicdev/cakephp-seo ^0.1`
 2. `config/plugins.php`: `'TheMusicDev/Seo' => []`
-3. `bin/cake migrations migrate -p TheMusicDev/Seo` (and again with
-   `--connection test` for the test database)
+3. `bin/cake migrations migrate -p TheMusicDev/Seo` (the test database is
+   migrated by the host's `tests/bootstrap.php`)
 
 ## Configure (host `config/app.php`)
 
@@ -55,8 +55,9 @@ non-zero when two pages claim the same path (the first one wins).
 
 ## Tests
 
-`vendor/bin/phpunit --testsuite seo` (plugin tests live in `tests/`; they need
-the `seo_pages` table on the test database — migrate it first, see Install).
+`vendor/bin/phpunit --testsuite seo` (plugin tests live in `tests/`; the host's
+test bootstrap migrates the plugin's tables, so add the plugin to its
+`Migrator::runMany()` list).
 
 ## Gotchas
 
