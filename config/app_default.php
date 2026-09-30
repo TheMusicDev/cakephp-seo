@@ -12,5 +12,8 @@ declare(strict_types=1);
 return [
     'Seo' => [
         'subjects' => [],
+        // URLs per sitemap file (the protocol allows 50,000); a subject with
+        // more pages is split into numbered files.
+        'sitemap' => ['pageSize' => 10000],
     ],
 ];

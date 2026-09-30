@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace TheMusicDev\Seo\Test\TestCase\Controller;
 
+use Cake\Core\Configure;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
@@ -63,6 +64,29 @@ final class SitemapControllerTest extends TestCase
         $this->assertContentType('application/xml');
         $this->assertResponseContains('/a/</loc>');
         $this->assertResponseContains('/b/</loc>');
+    }
+
+    public function testNumberedChunkFilesAreServedWhenASubjectOutgrowsThePageSize(): void
+    {
+        ArraySubject::$pages = ['s' => ['a' => '/a/', 'b' => '/b/', 'c' => '/c/']];
+        $this->rebuild();
+        $original = Configure::read('Seo.sitemap.pageSize');
+        Configure::write('Seo.sitemap.pageSize', 2);
+        try {
+            $this->get('/sitemap-index.xml');
+            $this->assertResponseContains('/sitemap-s.xml</loc>');
+            $this->assertResponseContains('/sitemap-s-2.xml</loc>');
+
+            $this->get('/sitemap-s-2.xml');
+            $this->assertResponseOk();
+            $this->assertResponseContains('/c/</loc>');
+            $this->assertResponseNotContains('/a/</loc>');
+
+            $this->get('/sitemap-s-3.xml');
+            $this->assertResponseCode(404);
+        } finally {
+            Configure::write('Seo.sitemap.pageSize', $original);
+        }
     }
 
     public function testUnknownSubjectFileIs404(): void

@@ -3,31 +3,50 @@ declare(strict_types=1);
 
 namespace TheMusicDev\Seo\Lib;
 
+use Cake\Core\Configure;
 use Cake\ORM\Locator\LocatorAwareTrait;
+use Cake\ORM\Query\SelectQuery;
 use Cake\Routing\Router;
 use Cake\Utility\Inflector;
 use Cake\Utility\Text;
 use DateTimeInterface;
-use TheMusicDev\Seo\Model\Table\SeoPagesTable;
 use XMLWriter;
 
 /**
  * Builds the XML sitemaps from the live rows of `seo_pages` (design doc S3):
- * an index listing one child file per subject that has live pages, and the
- * child files themselves. Paths are stored relative (A7), so absolute URLs
- * are built from the app's configured base URL at render time.
+ * an index listing the files, and the files themselves. Paths are stored
+ * relative (A7), so absolute URLs are built from the app's configured base URL
+ * at render time.
  *
- * Child file names come from the subject key: the last segment, dashed —
+ * One subject = one file until it has more than `pageSize` pages (config
+ * `Seo.sitemap.pageSize`, default 10,000 — the protocol allows 50,000), then
+ * it is split into chunks ordered by path. The first chunk keeps the plain name
+ * (`sitemap-job-postings.xml`), later ones are numbered
+ * (`sitemap-job-postings-2.xml`). Files are built from plain rows with only
+ * the columns needed, so memory does not grow with the number of pages.
+ *
+ * File names come from the subject key: the last segment, dashed —
  * `TheMusicDev/Recruiting.JobPostings` → `job-postings`. When two subjects
  * would share a name (or one is called `index`) the colliding ones fall back
  * to the whole key dashed, so a name is always unique and never shadows the
- * index.
+ * index. Known limit: a subject whose name ends in `-2` could collide with
+ * another subject's second chunk; the exact match wins.
  */
 final class Sitemap
 {
     use LocatorAwareTrait;
 
     private const NAMESPACE_URI = 'http://www.sitemaps.org/schemas/sitemap/0.9';
+
+    private int $pageSize;
+
+    /**
+     * @param int|null $pageSize URLs per file; defaults to Configure `Seo.sitemap.pageSize`.
+     */
+    public function __construct(?int $pageSize = null)
+    {
+        $this->pageSize = max(1, $pageSize ?? (int)Configure::read('Seo.sitemap.pageSize', 10000));
+    }
 
     /**
      * Short file-name slug for a subject key.
@@ -54,15 +73,135 @@ final class Sitemap
      */
     public function subjects(): array
     {
-        /** @var list<string> $keys */
-        $keys = $this->pages()->find('live')
-            ->select(['subject'])
-            ->distinct(['subject'])
-            ->orderByAsc('subject')
-            ->all()
-            ->extract('subject')
-            ->toList();
+        return $this->slugMap(array_keys($this->stats()));
+    }
 
+    /**
+     * The sitemap index: one entry per file, `lastmod` = the newest page in it.
+     */
+    public function index(): string
+    {
+        $stats = $this->stats();
+
+        $xml = $this->writer('sitemapindex');
+        foreach ($this->slugMap(array_keys($stats)) as $slug => $key) {
+            $chunks = (int)ceil($stats[$key]['pages'] / $this->pageSize);
+            for ($chunk = 1; $chunk <= $chunks; $chunk++) {
+                $latest = $chunks === 1 ? $stats[$key]['latest'] : $this->chunkLatest($key, $chunk);
+                $xml->startElement('sitemap');
+                $xml->writeElement('loc', Router::url($this->fileName($slug, $chunk), true));
+                if ($latest !== null) {
+                    $xml->writeElement('lastmod', $this->date($latest));
+                }
+                $xml->endElement();
+            }
+        }
+
+        return $this->finish($xml);
+    }
+
+    /**
+     * One file's `<urlset>` (`job-postings`, `job-postings-2`, …), or null when
+     * there is no such file.
+     */
+    public function urlset(string $name): ?string
+    {
+        $stats = $this->stats();
+        $map = $this->slugMap(array_keys($stats));
+
+        $chunk = 1;
+        $key = $map[$name] ?? null;
+        if ($key === null && preg_match('/^(.+)-(\d+)$/', $name, $m) === 1 && isset($map[$m[1]])) {
+            $key = $map[$m[1]];
+            $chunk = (int)$m[2];
+            if ($chunk < 2 || $chunk > (int)ceil($stats[$key]['pages'] / $this->pageSize)) {
+                return null;
+            }
+        }
+        if ($key === null) {
+            return null;
+        }
+
+        $xml = $this->writer('urlset');
+        $rows = $this->livePages()
+            ->select(['path', 'lastmod'])
+            ->where(['subject' => $key])
+            ->orderByAsc('path')
+            ->limit($this->pageSize)
+            ->offset(($chunk - 1) * $this->pageSize)
+            ->disableHydration();
+        foreach ($rows as $row) {
+            $xml->startElement('url');
+            $xml->writeElement('loc', Router::url((string)$row['path'], true));
+            if ($row['lastmod'] instanceof DateTimeInterface) {
+                $xml->writeElement('lastmod', $this->date($row['lastmod']));
+            }
+            $xml->endElement();
+        }
+
+        return $this->finish($xml);
+    }
+
+    /**
+     * Live page count and newest `lastmod` per subject, in one query.
+     *
+     * @return array<string, array{pages: int, latest: \DateTimeInterface|null}>
+     */
+    private function stats(): array
+    {
+        $query = $this->livePages();
+        $query
+            ->select([
+                'subject',
+                'pages' => $query->func()->count('*'),
+                'latest' => $query->func()->max('lastmod'),
+            ])
+            ->groupBy('subject')
+            ->orderByAsc('subject')
+            ->disableHydration();
+        $query->getSelectTypeMap()->addDefaults(['latest' => 'datetime']);
+
+        $stats = [];
+        foreach ($query as $row) {
+            $stats[(string)$row['subject']] = [
+                'pages' => (int)$row['pages'],
+                'latest' => $row['latest'] instanceof DateTimeInterface ? $row['latest'] : null,
+            ];
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Newest `lastmod` within one chunk of a subject (null when none is known).
+     */
+    private function chunkLatest(string $key, int $chunk): ?DateTimeInterface
+    {
+        $latest = null;
+        $rows = $this->livePages()
+            ->select(['lastmod'])
+            ->where(['subject' => $key])
+            ->orderByAsc('path')
+            ->limit($this->pageSize)
+            ->offset(($chunk - 1) * $this->pageSize)
+            ->disableHydration();
+        foreach ($rows as $row) {
+            if ($row['lastmod'] instanceof DateTimeInterface && ($latest === null || $row['lastmod'] > $latest)) {
+                $latest = $row['lastmod'];
+            }
+        }
+
+        return $latest;
+    }
+
+    /**
+     * Unique file-name slug per subject key.
+     *
+     * @param list<string> $keys Subject keys with live pages.
+     * @return array<string, string> slug => subject key
+     */
+    private function slugMap(array $keys): array
+    {
         $short = [];
         foreach ($keys as $key) {
             $short[$key] = self::slug($key);
@@ -79,80 +218,24 @@ final class Sitemap
     }
 
     /**
-     * The sitemap index: one entry per subject file, `lastmod` = its newest page.
+     * Path of a subject's file: plain for the first chunk, `-N` after.
      */
-    public function index(): string
+    private function fileName(string $slug, int $chunk): string
     {
-        $latest = $this->latestBySubject();
-
-        $xml = $this->writer('sitemapindex');
-        foreach ($this->subjects() as $slug => $key) {
-            $xml->startElement('sitemap');
-            $xml->writeElement('loc', Router::url('/sitemap-' . $slug . '.xml', true));
-            if (isset($latest[$key])) {
-                $xml->writeElement('lastmod', $this->date($latest[$key]));
-            }
-            $xml->endElement();
-        }
-
-        return $this->finish($xml);
+        return '/sitemap-' . $slug . ($chunk > 1 ? '-' . $chunk : '') . '.xml';
     }
 
     /**
-     * One subject's `<urlset>`, or null when no subject has that slug.
-     */
-    public function urlset(string $slug): ?string
-    {
-        $key = $this->subjects()[$slug] ?? null;
-        if ($key === null) {
-            return null;
-        }
-
-        $xml = $this->writer('urlset');
-        $rows = $this->pages()->find('live')->where(['subject' => $key])->orderByAsc('path')->all();
-        /** @var \TheMusicDev\Seo\Model\Entity\SeoPage $row */
-        foreach ($rows as $row) {
-            $xml->startElement('url');
-            $xml->writeElement('loc', Router::url((string)$row->path, true));
-            if ($row->lastmod !== null) {
-                $xml->writeElement('lastmod', $this->date($row->lastmod));
-            }
-            $xml->endElement();
-        }
-
-        return $this->finish($xml);
-    }
-
-    /**
-     * Newest known `lastmod` per subject (missing when a subject has none).
+     * A query over the live pages.
      *
-     * @return array<string, \DateTimeInterface>
+     * @return \Cake\ORM\Query\SelectQuery<\Cake\Datasource\EntityInterface>
      */
-    private function latestBySubject(): array
+    private function livePages(): SelectQuery
     {
-        $query = $this->pages()->find('live');
-        $query
-            ->select(['subject', 'latest' => $query->func()->max('lastmod')])
-            ->groupBy('subject');
-        $query->getSelectTypeMap()->addDefaults(['latest' => 'datetime']);
+        /** @var \TheMusicDev\Seo\Model\Table\SeoPagesTable $pages */
+        $pages = $this->fetchTable('TheMusicDev/Seo.SeoPages');
 
-        $latest = [];
-        foreach ($query->all() as $row) {
-            if ($row->get('latest') instanceof DateTimeInterface) {
-                $latest[(string)$row->get('subject')] = $row->get('latest');
-            }
-        }
-
-        return $latest;
-    }
-
-    /**
-     * The page index table.
-     */
-    private function pages(): SeoPagesTable
-    {
-        /** @var \TheMusicDev\Seo\Model\Table\SeoPagesTable */
-        return $this->fetchTable('TheMusicDev/Seo.SeoPages');
+        return $pages->find('live');
     }
 
     /**

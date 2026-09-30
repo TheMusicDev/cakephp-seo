@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace TheMusicDev\Seo\Test\TestCase\Lib;
 
+use Cake\Core\Configure;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
@@ -146,5 +147,86 @@ final class SitemapTest extends TestCase
 
         $this->assertSame('sitemapindex', $xml->getName());
         $this->assertCount(0, $xml->sitemap);
+    }
+
+    private function seedPosts(int $count): void
+    {
+        for ($i = 1; $i <= $count; $i++) {
+            $this->seed('Blog.Posts', (string)$i, sprintf('/blog/%02d/', $i), new DateTime(sprintf('2026-01-%02d 10:00:00', $i)));
+        }
+    }
+
+    public function testASubjectOverThePageSizeIsSplitIntoNumberedFiles(): void
+    {
+        $this->seedPosts(5);
+        $sitemap = new Sitemap(2);
+
+        $index = $this->xml($sitemap->index());
+        $files = [];
+        foreach ($index->sitemap as $entry) {
+            $files[] = basename((string)$entry->loc);
+        }
+        $this->assertSame(['sitemap-posts.xml', 'sitemap-posts-2.xml', 'sitemap-posts-3.xml'], $files);
+
+        $paths = [];
+        foreach (['posts', 'posts-2', 'posts-3'] as $name) {
+            $body = $sitemap->urlset($name);
+            $this->assertNotNull($body, $name);
+            foreach ($this->xml($body)->url as $url) {
+                $paths[$name][] = substr((string)$url->loc, (int)strpos((string)$url->loc, '/blog/'));
+            }
+        }
+        $this->assertSame(['/blog/01/', '/blog/02/'], $paths['posts']);
+        $this->assertSame(['/blog/03/', '/blog/04/'], $paths['posts-2']);
+        $this->assertSame(['/blog/05/'], $paths['posts-3']);
+    }
+
+    public function testFilesThatDoNotExistAreNull(): void
+    {
+        $this->seedPosts(5);
+        $sitemap = new Sitemap(2);
+
+        $this->assertNull($sitemap->urlset('posts-4'), 'past the last chunk');
+        $this->assertNull($sitemap->urlset('posts-1'), 'the first chunk is the plain name');
+        $this->assertNull($sitemap->urlset('posts-0'));
+        $this->assertNull($sitemap->urlset('nope-2'));
+    }
+
+    public function testExactlyOnePageSizeIsStillOneFile(): void
+    {
+        $this->seedPosts(4);
+        $sitemap = new Sitemap(4);
+
+        $this->assertCount(1, $this->xml($sitemap->index())->sitemap);
+        $this->assertNull($sitemap->urlset('posts-2'));
+        $this->assertCount(4, $this->xml((string)$sitemap->urlset('posts'))->url);
+    }
+
+    public function testEachChunkInTheIndexCarriesItsOwnNewestLastmod(): void
+    {
+        $this->seedPosts(4);
+
+        $entries = $this->xml((new Sitemap(2))->index())->sitemap;
+
+        $this->assertSame(
+            (new DateTime('2026-01-02 10:00:00'))->getTimestamp(),
+            (new DateTime((string)$entries[0]->lastmod))->getTimestamp(),
+        );
+        $this->assertSame(
+            (new DateTime('2026-01-04 10:00:00'))->getTimestamp(),
+            (new DateTime((string)$entries[1]->lastmod))->getTimestamp(),
+        );
+    }
+
+    public function testThePageSizeComesFromConfigByDefault(): void
+    {
+        $this->seedPosts(3);
+        $original = Configure::read('Seo.sitemap.pageSize');
+        Configure::write('Seo.sitemap.pageSize', 2);
+        try {
+            $this->assertCount(2, $this->xml((new Sitemap())->index())->sitemap);
+        } finally {
+            Configure::write('Seo.sitemap.pageSize', $original);
+        }
     }
 }
