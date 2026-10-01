@@ -5,6 +5,47 @@ Why + what bit us while building. The **design of record** is
 [delivery-plan.md](delivery-plan.md) is the build order. This file records
 decisions made *during* the build and the gotchas the code hit.
 
+## F7 — robots.txt (built 2026-10-01)
+
+**Decisions**
+
+- **`/robots.txt` is generated** by the plugin (`RobotsController` + `Lib\Robots`, route named
+  `seo.robots`) from `Seo.robots`, so the rules are config, not a file (A12, G4). The
+  `Sitemap:` line is built from the named `seo.sitemap` route, never typed — it is the same
+  `/sitemap-index.xml` the plugin serves, absolute from the app's base URL.
+- **Only listed hosts may be crawled.** `Seo.robots.allowHosts` is a list of hostnames (no
+  port, compared case-insensitively). A request for any other host — staging, a preview,
+  `localhost`, a look-alike such as `themusicdev.llc.evil.example` — gets
+  `User-agent: *` / `Disallow: /` and **no** sitemap line (advertising a map of pages it just
+  forbade crawling would contradict itself, and on staging would leak it). A leading comment
+  line says why, since a developer curling it otherwise only sees `Disallow: /`. An **empty** list means no
+  restriction, so a site that forgets to configure it stays crawlable instead of being blocked
+  from Google by surprise; the cost is that every real deployment must set it (the host does).
+- **Rules are groups** (`userAgent`, `allow`, `disallow`). Crawlers obey only their single most
+  specific group, so the host uses **one `*` group** carrying `Disallow: /admin` and `/files`;
+  the four per-bot groups the Astro file listed (Googlebot, Bingbot, Twitterbot,
+  facebookexternalhit, each `Allow: /`) were no-ops, and keeping them would have required
+  repeating the disallows in each.
+- **Config cannot inject directives:** CR/LF are stripped from every value, empty values and
+  agent-less groups are dropped (`testLineBreaksInConfigCannotInjectDirectives`).
+- **The renderer is a pure function** (`Robots::render($config, $host, $sitemapUrl)`), tested
+  without the framework; the controller only supplies the host and the sitemap URL.
+- **The static `webroot/robots.txt` is deleted**: the web server serves a real file before PHP
+  sees the request, so it would silently shadow the route (`RobotsSitemapLinkTest` fails if one
+  comes back). `/robots.txt` is in `Seo.redirects.skip` (it is never a page, and a crawler hits
+  it constantly).
+
+**Gotchas**
+
+- **`Disallow` stops crawling; it does not remove anything from search results** — that takes
+  `noindex`. A non-production host that was ever indexed needs `noindex` / removal, not just
+  this file. (Not built; the apply and filtered pages are `noindex` in their meta tags and are
+  deliberately NOT disallowed, since a crawler that cannot fetch a page cannot see its `noindex`.)
+- **The sitemap line's scheme/host come from `App.fullBaseUrl`,** not the request host: set
+  `APP_FULL_BASE_URL` in production (the dev server shows `http://` and the request host).
+- **A crawler's single-group rule is easy to get wrong:** a path blocked only in the `*` group
+  is *not* blocked for a crawler that has its own group.
+
 ## F6 — redirects and 410 (built 2026-10-01)
 
 **Decisions**

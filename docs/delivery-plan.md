@@ -6,7 +6,7 @@ something you can see. The *what* and *why* live in
 [`seo-plugin-design.md`](seo-plugin-design.md) (A = agreed decision, G = gap,
 S = solution, D = deferred); this file is only the *order and slicing*.
 
-Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8, F2 and F3 kept as separate changes). F1–F6 are built (see `decisions.md`); the rest is planned.
+Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8, F2 and F3 kept as separate changes). F1–F7 are built (see `decisions.md`); the rest is planned.
 
 ## 1. Principles
 
@@ -44,7 +44,7 @@ Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F
 | F4 | Head helper | `$this->Seo->head()` prints title, canonical, robots, OG, Twitter from the row | G3 | F1, F3 | M | **built** (uncommitted) |
 | F5 | Structured data | JSON-LD built by subjects, stored, rendered as one `@graph`; `JobPosting` live on careers pages | G2 | F4 | M | **built** (uncommitted) |
 | F6 | Redirects & 410 | old paths 301, removed pages 410, via plugin middleware | G5 | F1 | M | **built** (uncommitted) |
-| F7 | robots.txt | generated from config, non-prod disallow-all | G4 | F2 | S | planned |
+| F7 | robots.txt | generated from config, non-prod disallow-all | G4 | F2 | S | **built** (uncommitted) |
 | F8 | Sync command | `bin/cake seo sync <subject> <id>` for `Queue.Execute` | — | F1 | S | planned |
 
 Sizes: S ≈ a focused sitting, M ≈ a day or so, no estimate promised.

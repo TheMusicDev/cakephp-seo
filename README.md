@@ -109,6 +109,27 @@ Subjects set `ogType` / `ogImage` per page in `PageData`. The canonical is a rea
 `bin/cake seo rebuild` on deploy, before traffic** — before the first rebuild a page
 renders the bare site name and an empty description.
 
+## robots.txt
+
+`/robots.txt` is generated from config; **delete any static `webroot/robots.txt`** — the web
+server would serve it first and shadow the route.
+
+```php
+'Seo' => ['robots' => [
+    'allowHosts' => ['example.com'],   // ONLY these hosts may be crawled; any other host gets Disallow: /
+    'rules' => [
+        ['userAgent' => '*', 'allow' => ['/'], 'disallow' => ['/admin', '/files']],
+    ],
+]]
+```
+
+**Set `allowHosts` on every real deployment.** A request for any other host (staging, a preview,
+`localhost`) is told `Disallow: /` and gets no sitemap line; an empty list means no restriction.
+A crawler obeys only its single most specific group, so list a blocked path in every group it
+could match. The `Sitemap:` line is built from the sitemap route and the app's base URL
+(`APP_FULL_BASE_URL`). `Disallow` stops crawling but does not remove a page from search results
+(that takes `noindex`).
+
 ## Redirects and 410
 
 When a page's path changes (a slug renamed, a route moved) the rebuild records the old path
