@@ -5,6 +5,61 @@ Why + what bit us while building. The **design of record** is
 [delivery-plan.md](delivery-plan.md) is the build order. This file records
 decisions made *during* the build and the gotchas the code hit.
 
+## F4 — head helper (built 2026-09-30)
+
+**Decisions**
+
+- **`$this->Seo->head()` is one helper call in the layout** and prints the title,
+  description, canonical, robots, Open Graph and Twitter tags, one per line. The
+  page row is found by the **request path** (a trailing slash is ignored), or by an
+  explicit `$this->set('seoPage', [$subject, $id])` (A17).
+- **Resolution order, first wins:** the `seoOverride` view variable → the page
+  row → `metaTitle` / `metaDescription` view variables (pages with no row) → the
+  `Seo.site` defaults. `seoOverride` may carry `title`, `description`, `canonical`
+  (a URL or a path), `robots`, `ogType`, `ogImage`; it replaces the two loose
+  `canonicalUrl` / `robots` variables the layout had as a stopgap (design S12).
+- **The title gets the site name appended** (`About — Name`) unless the page is
+  titled exactly the site name (the home page) or there is no site name. Format
+  and name are `Seo.site.titleSeparator` / `Seo.site.name`.
+- **`og_type` and `og_image` are columns on `seo_pages`**, set per page by the
+  subject through `PageData::$ogType` / `$ogImage` (job postings are `article`).
+  The default image, its width, height and type live in `Seo.site`; the dimensions
+  are emitted only for the default image, not for a page's own.
+- **Image URLs are made absolute at render time** from the app's base URL
+  (`Cake\Routing\Asset::url(..., fullBase)`), so a staging site points at staging.
+  (They were hardcoded to `https://themusicdev.llc/…`; identical in production.)
+- **The controllers no longer set titles or descriptions for pages that are rows**
+  — the subject is the one source (home, about, contact, careers, jobs). Only
+  pages that are not rows say anything: apply pages (`metaTitle` / `metaDescription`
+  + `seoOverride['robots']`), later list pages and filtered lists (`seoOverride`).
+- **Verified with a before/after diff of every page's `<head>`:** only the intended
+  differences remain (below).
+
+**Two real bugs this fixed**
+
+- **The canonical was a `<meta>`, not a `<link>`.** `Html->meta(['rel' =>
+  'canonical', …])` printed `<meta rel="canonical" href="…">`, which search engines
+  ignore; the tag must be `<link rel="canonical" href="…">`. The same mistake made
+  the web manifest `<meta rel="manifest">`. Both are `<link>` now.
+- **The canonical used to echo the requested URL**, so `/about` and `/about/` each
+  named themselves. It is now the stored (slash-free) path; with the TrailingSlash
+  redirect only that form is ever served.
+
+**Gotchas**
+
+- **Titles and descriptions come from the page index, so run `bin/cake seo rebuild`
+  on deploy, before traffic.** Before the first rebuild a page renders the bare site
+  name and an empty description (`HeadTagsTest::testBeforeAnyRebuild…`). Pages
+  whose subject changed (new copy) update on the next rebuild.
+- **`Html->tag('title', …)` does not escape its content**; the helper escapes the
+  title itself (`testValuesAreEscaped`). Attributes are escaped by `Html->meta`.
+- **In a `??` chain, `$page->x` is safe in the middle but the last operand needs
+  `$page?->x`** — `??` shields a null left side, not the right-hand fallback.
+- **`View::addHelper()` is protected**; tests load the helper with
+  `$view->loadHelper('Seo', ['className' => SeoHelper::class])`.
+- **Stored paths exclude the app's base directory** (`$request->getPath()`), while
+  `Router::url()` includes it; a subdirectory install would need the two reconciled.
+
 ## F3 — static pages (built 2026-09-30)
 
 **Decisions**

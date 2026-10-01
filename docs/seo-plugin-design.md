@@ -332,7 +332,7 @@ None.
 | S10 | **Multi-language (hreflang)** | Deferred (D4) | v2. |
 | S11a | **Search-engine notification** (IndexNow, Google Indexing API for job postings; Search Console reporting is not a plugin feature) | Deferred (D5) | v2. |
 | S11b | **Analytics / tracking tags** (GA-style) | Rejected (R6) | Not SEO; umami lives in the layout. |
-| S12 | **Paginated and filtered listing pages** | Proposed (interim: host layout) | `/careers` is paginated with server-side filters (2026-09-30). Rules in use: each page self-canonical **including its query string**, filtered pages `noindex,follow`, out-of-range page 404. Page rows are keyed by path without the query string (A7), so `?page=2` and `?location=…` variants are not rows; the head helper (F4) must accept a canonical/robots override for them instead of resolving to the `/careers/` row (which would canonicalize page 2 to page 1). Today the layout takes `canonicalUrl` / `robots` view variables. |
+| S12 | **Paginated and filtered listing pages** | Proposed (interim: host layout) | `/careers` is paginated with server-side filters (2026-09-30). Rules in use: each page self-canonical **including its query string**, filtered pages `noindex,follow`, out-of-range page 404. Page rows are keyed by path without the query string (A7), so `?page=2` and `?location=…` variants are not rows; the head helper (F4) accepts a `seoOverride` (canonical, robots, title…) for them instead of resolving to the `/careers/` row (which would canonicalize page 2 to page 1). Built in F4: the controller sets `seoOverride`, the layout's stopgap `canonicalUrl` / `robots` variables are gone. |
 
 ## 9. Open questions (need a decision)
 

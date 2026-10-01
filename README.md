@@ -71,6 +71,44 @@ does not know).
 test bootstrap migrates the plugin's tables, so add the plugin to its
 `Migrator::runMany()` list).
 
+## Head tags
+
+One call in the layout prints the title, description, canonical, robots, Open Graph and
+Twitter tags for the page:
+
+```php
+<?= $this->Seo->head() ?>
+```
+
+Load the helper once in `AppView::initialize()`: `$this->addHelper('TheMusicDev/Seo.Seo');`.
+The page's row in `seo_pages` is found by the request path. Each value comes from the
+first of: the `seoOverride` view variable → the page row → the `metaTitle` /
+`metaDescription` view variables (pages that are not rows) → the site defaults.
+
+```php
+// A page that is not a row (page 2 of a list, a filtered list) says what differs:
+$this->set('seoOverride', [
+    'title' => 'Careers — page 2',
+    'canonical' => Router::url(['_name' => 'careers', '?' => ['page' => 2]], true),
+    'robots' => 'noindex,follow',          // also: description, ogType, ogImage
+]);
+```
+
+Site-wide defaults (host `config/app.php`):
+
+```php
+'Seo' => ['site' => [
+    'name' => 'Acme',                      // appended to titles: "About — Acme"
+    'image' => '/images/og-default.webp',  // default share image (path or URL)
+    'imageWidth' => 1200, 'imageHeight' => 630, 'imageType' => 'image/webp',
+]],
+```
+
+Subjects set `ogType` / `ogImage` per page in `PageData`. The canonical is a real
+`<link rel="canonical">`. **Titles and descriptions come from the page index, so run
+`bin/cake seo rebuild` on deploy, before traffic** — before the first rebuild a page
+renders the bare site name and an empty description.
+
 ## URL form
 
 The plugin stores and lists paths **exactly as your subjects return them** and never
