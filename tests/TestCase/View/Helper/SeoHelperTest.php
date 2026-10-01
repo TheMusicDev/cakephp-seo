@@ -263,4 +263,122 @@ final class SeoHelperTest extends TestCase
         $this->assertStringContainsString('<title>Chosen — Acme</title>', $head);
         $this->assertStringContainsString('<link href="http://localhost/real-path" rel="canonical">', $head);
     }
+
+    /**
+     * The decoded JSON-LD document of a head, or null when it has none.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function graph(string $head): ?array
+    {
+        if (preg_match('#<script type="application/ld\+json">(.*)</script>#s', $head, $m) !== 1) {
+            return null;
+        }
+
+        return json_decode($m[1], true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    public function testSiteNodesThenThePageNodesFormOneGraph(): void
+    {
+        Configure::write('Seo.site.schema', [['@type' => 'Organization', 'name' => 'Acme']]);
+        $this->seed('/careers/x', ['schema' => [['@type' => 'JobPosting', 'title' => 'X']]]);
+
+        $document = $this->graph($this->head('/careers/x'));
+
+        $this->assertSame('https://schema.org', $document['@context']);
+        $this->assertSame(['Organization', 'JobPosting'], array_column($document['@graph'], '@type'));
+    }
+
+    public function testPagesWithNoRowStillGetTheSiteWideNodes(): void
+    {
+        Configure::write('Seo.site.schema', [['@type' => 'Organization', 'name' => 'Acme']]);
+
+        $document = $this->graph($this->head('/no-row'));
+
+        $this->assertSame(['Organization'], array_column($document['@graph'], '@type'));
+    }
+
+    public function testAGoneRowContributesNoNodes(): void
+    {
+        Configure::write('Seo.site.schema', [['@type' => 'Organization', 'name' => 'Acme']]);
+        $this->seed('/old', ['status' => 'gone', 'schema' => [['@type' => 'JobPosting', 'title' => 'Old']]]);
+
+        $document = $this->graph($this->head('/old'));
+
+        $this->assertSame(['Organization'], array_column($document['@graph'], '@type'));
+    }
+
+    public function testNoScriptBlockWhenThereAreNoNodesAtAll(): void
+    {
+        Configure::write('Seo.site.schema', []);
+        $this->seed('/plain');
+
+        $this->assertStringNotContainsString('ld+json', $this->head('/plain'));
+    }
+
+    public function testPathsUnderUrlAndItemBecomeAbsoluteAtAnyDepth(): void
+    {
+        $this->seed('/careers/x', ['schema' => [
+            ['@type' => 'JobPosting', 'url' => '/careers/x', 'sameAs' => '/not-touched'],
+            ['@type' => 'BreadcrumbList', 'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => '/'],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => 'X'],
+            ]],
+            ['@type' => 'Organization', 'url' => 'https://already.example/'],
+        ]]);
+
+        $nodes = $this->graph($this->head('/careers/x'))['@graph'];
+
+        $this->assertSame('http://localhost/careers/x', $nodes[0]['url']);
+        $this->assertSame('/not-touched', $nodes[0]['sameAs'], 'only url / item are rewritten');
+        $this->assertSame('http://localhost/', $nodes[1]['itemListElement'][0]['item']);
+        $this->assertSame('https://already.example/', $nodes[2]['url']);
+    }
+
+    /**
+     * A value holding `</script>` must not be able to end the block and inject
+     * markup: the only `</script>` in the output is the one that closes it.
+     */
+    public function testAValueCannotBreakOutOfTheScriptBlock(): void
+    {
+        $evil = '</script><script>alert(1)</script>';
+        $this->seed('/evil', ['schema' => [['@type' => 'JobPosting', 'description' => $evil]]]);
+
+        $head = $this->head('/evil');
+
+        $this->assertSame(1, substr_count($head, '</script>'));
+        $this->assertSame($evil, $this->graph($head)['@graph'][0]['description'], 'the value itself is intact once decoded');
+    }
+
+    public function testQuotesAmpersandsAndAnglesAreHexEscaped(): void
+    {
+        $this->seed('/chars', ['schema' => [['@type' => 'Thing', 'name' => 'A & B "quoted" it\'s <b>']]]);
+
+        $head = $this->head('/chars');
+
+        foreach (['\u0026', '\u0022', '\u0027', '\u003C', '\u003E'] as $escape) {
+            $this->assertStringContainsString($escape, $head);
+        }
+        $this->assertSame('A & B "quoted" it\'s <b>', $this->graph($head)['@graph'][0]['name']);
+    }
+
+    public function testUnicodeAndSlashesAreNotNeedlesslyEscaped(): void
+    {
+        $this->seed('/uni', ['schema' => [['@type' => 'Thing', 'name' => 'Café — 10–15 hours', 'url' => 'https://a.test/b']]]);
+
+        $head = $this->head('/uni');
+
+        $this->assertStringContainsString('Café — 10–15 hours', $head);
+        $this->assertStringContainsString('https://a.test/b', $head);
+    }
+
+    public function testTheRowSchemaSurvivesTheJsonColumnAsAnArray(): void
+    {
+        $nodes = [['@type' => 'JobPosting', 'title' => 'X', 'baseSalary' => ['value' => ['value' => 45]]]];
+        $this->seed('/round', ['schema' => $nodes]);
+
+        $row = $this->pages->find()->where(['path' => '/round'])->firstOrFail();
+
+        $this->assertSame($nodes, $row->schema);
+    }
 }

@@ -24,6 +24,9 @@ return [
             'imageHeight' => null,
             'imageType' => null,
             'twitterCard' => 'summary_large_image',
+            // Site-wide JSON-LD nodes (Organization, WebSite…) added to every page's
+            // @graph; build them with TheMusicDev\Seo\Schema\Schema.
+            'schema' => [],
         ],
         // URLs per sitemap file (the protocol allows 50,000); a subject with
         // more pages is split into numbered files.

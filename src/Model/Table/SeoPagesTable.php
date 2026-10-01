@@ -25,6 +25,8 @@ class SeoPagesTable extends Table
 
         $this->setTable('seo_pages');
         $this->setDisplayField('path');
+        // The stored JSON-LD nodes: an array in PHP, JSON in the column.
+        $this->getSchema()->setColumnType('schema', 'json');
         $this->addBehavior('Timestamp');
     }
 

@@ -27,6 +27,11 @@ use TheMusicDev\Seo\Model\Entity\SeoPage;
  *    (error pages, apply pages);
  * 4. the site defaults in `Seo.site` (name, default image, twitter card…).
  *
+ * It also prints the page's structured data: one `<script type="application/ld+json">`
+ * holding a single `@graph` of the site-wide nodes (`Seo.site.schema`: Organization,
+ * WebSite…) followed by the page row's own nodes (`seo_pages.schema`). `url` and
+ * `item` values given as paths are made absolute here, like the canonical.
+ *
  * @extends \Cake\View\Helper<\Cake\View\View>
  * @property \Cake\View\Helper\HtmlHelper $Html
  */
@@ -104,7 +109,69 @@ class SeoHelper extends Helper
             $tags[] = $html->meta(['name' => 'twitter:image', 'content' => $imageUrl]);
         }
 
+        $nodes = $this->nodes((array)($site['schema'] ?? []), $page);
+        if ($nodes !== []) {
+            $tags[] = $this->jsonLd($nodes);
+        }
+
         return implode("\n    ", $tags);
+    }
+
+    /**
+     * The graph's nodes: site-wide first, then the page's own, URLs made absolute.
+     *
+     * @param array<array-key, mixed> $siteNodes The `Seo.site.schema` config.
+     * @return list<array<string, mixed>>
+     */
+    private function nodes(array $siteNodes, ?SeoPage $page): array
+    {
+        $pageNodes = $page?->schema;
+        $nodes = [];
+        foreach (array_merge($siteNodes, is_array($pageNodes) ? $pageNodes : []) as $node) {
+            if (is_array($node) && $node !== []) {
+                /** @var array<string, mixed> $node */
+                $nodes[] = $this->absolutizeUrls($node);
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * Turn path values under `url` / `item` into absolute URLs, at any depth.
+     *
+     * @param array<array-key, mixed> $node
+     * @return array<array-key, mixed>
+     */
+    private function absolutizeUrls(array $node): array
+    {
+        foreach ($node as $key => $value) {
+            if (is_array($value)) {
+                $node[$key] = $this->absolutizeUrls($value);
+            } elseif (in_array($key, ['url', 'item'], true) && is_string($value) && str_starts_with($value, '/')) {
+                $node[$key] = Router::url($value, true);
+            }
+        }
+
+        return $node;
+    }
+
+    /**
+     * The `<script>` block. The HEX flags turn `<`, `>`, `&`, `'` and `"` inside
+     * values into \uXXXX escapes, so no value can contain `</script>` and break out
+     * of the block (the bug dereuromark/cakephp-meta patched in 1.2.0).
+     *
+     * @param list<array<string, mixed>> $nodes
+     */
+    private function jsonLd(array $nodes): string
+    {
+        $json = json_encode(
+            ['@context' => 'https://schema.org', '@graph' => $nodes],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
+                | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR,
+        );
+
+        return '<script type="application/ld+json">' . $json . '</script>';
     }
 
     /**
