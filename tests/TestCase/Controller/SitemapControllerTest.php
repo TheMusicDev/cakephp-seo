@@ -37,7 +37,7 @@ final class SitemapControllerTest extends TestCase
         (new PageIndexer())->rebuild(['s' => ArraySubject::class]);
     }
 
-    public function testIndexIsServedAsXmlAtBothNames(): void
+    public function testIndexIsServedAsXml(): void
     {
         ArraySubject::$pages = ['s' => ['a' => '/a/']];
         $this->rebuild();
@@ -46,11 +46,6 @@ final class SitemapControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertContentType('application/xml');
         $this->assertResponseContains('/sitemap-s.xml');
-        $index = (string)$this->_response->getBody();
-
-        $this->get('/sitemap.xml');
-        $this->assertResponseOk();
-        $this->assertSame($index, (string)$this->_response->getBody(), '/sitemap.xml is the same index');
     }
 
     public function testASubjectFileListsItsPages(): void

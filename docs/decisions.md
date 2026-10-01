@@ -298,8 +298,13 @@ site has that many pages.
 
 **Decisions**
 
-- **URLs:** `/sitemap-index.xml` (what `robots.txt` advertises) and
-  `/sitemap.xml` both serve the index; each subject with live pages gets
+- **URLs:** `/sitemap-index.xml` (what `robots.txt` advertises, and what Astro
+  published) serves the index. **The plugin has no `/sitemap.xml` alias** (removed 2026-10-01: it
+  was a speculative second URL for the same content; the protocol mandates no
+  name, and crawlers learn the sitemap from robots.txt / Search Console). A host that
+  wants the guessable names adds `$routes->redirect('/sitemap.xml', ['_name' =>
+  'seo.sitemap'], ['status' => 301])` itself — ours does, for `/sitemap.xml` and
+  `/sitemap_index.xml`. Each subject with live pages gets
   `/sitemap-{slug}.xml`. Routes ship with the plugin (`config/routes.php` +
   `$routesEnabled`, same as Files), so a host gets them by loading the plugin.
 - **Child file names come from the subject key** — the last segment, dashed:

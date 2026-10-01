@@ -194,7 +194,7 @@ must all be the same string. (The host's `AstroUrlMigrationTest` pins that.)
 ## Sitemap
 
 Served automatically once the plugin is loaded and `bin/cake seo rebuild` has
-run: `/sitemap-index.xml` (also `/sitemap.xml`) lists one file per subject with
+run: `/sitemap-index.xml` lists one file per subject with
 live pages, e.g. `/sitemap-job-postings.xml`. A page that stops being public
 leaves the sitemap on the next rebuild. Point `robots.txt` at
 `/sitemap-index.xml`.
