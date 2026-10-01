@@ -15,6 +15,8 @@ use Cake\ORM\Entity;
  * @property string $title
  * @property string|null $description
  * @property string|null $robots
+ * @property string|null $og_type
+ * @property string|null $og_image
  * @property \Cake\I18n\DateTime|null $lastmod
  * @property mixed $schema
  * @property string $status

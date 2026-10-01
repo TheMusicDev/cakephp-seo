@@ -191,6 +191,8 @@ final class PageIndexer
             'title' => $page->title,
             'description' => $page->description,
             'robots' => $page->robots,
+            'og_type' => $page->ogType,
+            'og_image' => $page->ogImage,
             'lastmod' => $page->lastmod === null ? null : $this->wholeSeconds($page->lastmod),
             'schema' => $page->schema,
             'checksum' => $checksum,
@@ -225,6 +227,8 @@ final class PageIndexer
             $page->robots,
             $page->lastmod === null ? null : $this->wholeSeconds($page->lastmod)->format('Y-m-d H:i:s'),
             $page->schema,
+            $page->ogType,
+            $page->ogImage,
         ]));
     }
 

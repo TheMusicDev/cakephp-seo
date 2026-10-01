@@ -20,6 +20,8 @@ final readonly class PageData
      * @param \DateTimeInterface|null $lastmod Last change, for the sitemap; null when unknown.
      * @param string|null $robots Robots meta value, e.g. `noindex`.
      * @param list<array<string, mixed>>|null $schema JSON-LD nodes (used by the structured-data feature).
+     * @param string|null $ogType Open Graph type (`article`…); the head helper defaults to `website`.
+     * @param string|null $ogImage Open Graph image, a path or URL; the site default image when null.
      */
     public function __construct(
         public string $path,
@@ -28,6 +30,8 @@ final readonly class PageData
         public ?DateTimeInterface $lastmod = null,
         public ?string $robots = null,
         public ?array $schema = null,
+        public ?string $ogType = null,
+        public ?string $ogImage = null,
     ) {
     }
 }
