@@ -28,6 +28,15 @@ return [
             // @graph; build them with TheMusicDev\Seo\Schema\Schema.
             'schema' => [],
         ],
+        // robots.txt. `allowHosts`: only these hosts (no port) may be crawled — any other
+        // host (staging, localhost) gets `Disallow: /`; empty means no restriction, so set it
+        // on every real deployment. `rules`: User-agent groups (`userAgent`, `allow`,
+        // `disallow`); a crawler obeys only its single most specific group, so repeat a
+        // blocked path in every group it could match.
+        'robots' => [
+            'allowHosts' => [],
+            'rules' => [['userAgent' => '*', 'allow' => ['/']]],
+        ],
         // Paths the redirects middleware never looks up (it queries the database).
         // List anything that is not a Seo page: the admin, a health probe, uploads.
         'redirects' => ['skip' => []],
