@@ -8,7 +8,9 @@ use Cake\I18n\DateTime;
 use Cake\ORM\Locator\LocatorAwareTrait;
 use DateTimeInterface;
 use InvalidArgumentException;
+use TheMusicDev\Seo\Model\Entity\SeoRedirect;
 use TheMusicDev\Seo\Model\Table\SeoPagesTable;
+use TheMusicDev\Seo\Model\Table\SeoRedirectsTable;
 use TheMusicDev\Seo\Subject\PageData;
 use TheMusicDev\Seo\Subject\SubjectInterface;
 
@@ -29,6 +31,11 @@ use TheMusicDev\Seo\Subject\SubjectInterface;
  * path. A page that wants a path still held by a stored page that has not been
  * processed yet is deferred to the end of the run, when it is known whether
  * that page moved, left or stayed.
+ *
+ * When a stored page's path changes, the old path is recorded as a 301 redirect to
+ * the page (design doc A8); a subject may also declare old paths (`redirectsFrom`,
+ * A14). Redirects point at the page row, so they never chain, and an old path that
+ * becomes a live page's own path is dropped — the page wins.
  */
 final class PageIndexer
 {
@@ -56,8 +63,20 @@ final class PageIndexer
     private array $counts = [];
 
     /**
+     * Problems found during the run (path clashes, dropped declared redirects).
+     *
+     * @var list<string>
+     */
+    private array $conflicts = [];
+
+    /**
+     * Redirects recorded in this run.
+     */
+    private int $redirects = 0;
+
+    /**
      * @param array<string, class-string<\TheMusicDev\Seo\Subject\SubjectInterface>>|null $subjects Defaults to Configure `Seo.subjects`.
-     * @return array{subjects: array<string, array{created: int, updated: int, unchanged: int, gone: int}>, conflicts: list<string>}
+     * @return array{subjects: array<string, array{created: int, updated: int, unchanged: int, gone: int}>, conflicts: list<string>, redirects: int}
      */
     public function rebuild(?array $subjects = null): array
     {
@@ -68,6 +87,8 @@ final class PageIndexer
         $this->counts = [];
         $this->existing = [];
         $this->pathOwner = [];
+        $this->conflicts = [];
+        $this->redirects = 0;
         $stored = $pages->find()
             ->select(['id', 'subject', 'subject_id', 'path', 'status', 'checksum'])
             ->disableHydration();
@@ -83,8 +104,6 @@ final class PageIndexer
             $this->pathOwner[(string)$row['path']] = $composite;
         }
 
-        /** @var list<string> $conflicts */
-        $conflicts = [];
         /** @var array<string, true> $seen */
         $seen = [];
         /** @var array<string, string> $claimed path => composite that claimed it in this run */
@@ -102,7 +121,7 @@ final class PageIndexer
                 $composite = $this->composite($key, $id);
 
                 if (isset($claimed[$page->path])) {
-                    $conflicts[] = sprintf(
+                    $this->conflicts[] = sprintf(
                         '%s wants %s, already claimed by %s',
                         $this->label($composite),
                         $page->path,
@@ -130,6 +149,7 @@ final class PageIndexer
             }
             $claimant = $claimed[$stored['path']] ?? null;
             if ($claimant !== null && $claimant !== $composite) {
+                // Its redirects go with it (ON DELETE CASCADE on seo_redirects.seo_page_id).
                 $pages->deleteAll(['id' => $stored['id']]);
                 unset($this->existing[$composite], $this->pathOwner[$stored['path']]);
                 $this->bump($stored['subject'], 'gone');
@@ -149,7 +169,7 @@ final class PageIndexer
         foreach ($deferred as $composite => [$key, $id, $page]) {
             $owner = $this->pathOwner[$page->path] ?? null;
             if ($owner !== null && $owner !== $composite) {
-                $conflicts[] = sprintf(
+                $this->conflicts[] = sprintf(
                     '%s wants %s, held by %s',
                     $this->label($composite),
                     $page->path,
@@ -160,7 +180,9 @@ final class PageIndexer
             $this->store($key, $id, $page);
         }
 
-        return ['subjects' => $this->counts, 'conflicts' => $conflicts];
+        $this->dropRedirectsThatAreNowPages();
+
+        return ['subjects' => $this->counts, 'conflicts' => $this->conflicts, 'redirects' => $this->redirects];
     }
 
     /**
@@ -205,6 +227,10 @@ final class PageIndexer
             unset($this->pathOwner[$stored['path']]);
         }
         $this->pathOwner[$page->path] = $composite;
+        if ($stored !== null && $stored['path'] !== $page->path) {
+            $this->recordMove($stored['path'], (int)$entity->get('id'));
+        }
+        $this->syncDeclared((int)$entity->get('id'), $composite, $page);
         $this->existing[$composite] = [
             'id' => (int)$entity->get('id'),
             'subject' => $subject,
@@ -229,6 +255,7 @@ final class PageIndexer
             $page->schema,
             $page->ogType,
             $page->ogImage,
+            $this->cleanPaths($page->redirectsFrom),
         ]));
     }
 
@@ -244,6 +271,134 @@ final class PageIndexer
             (int)$date->format('s'),
             0,
         );
+    }
+
+    /**
+     * Record that `$from` used to be this page's path: it now 301s to the page.
+     */
+    private function recordMove(string $from, int $pageId): void
+    {
+        $redirect = $this->redirectFor($from);
+        if (!$redirect->isNew() && (int)$redirect->seo_page_id === $pageId) {
+            return;
+        }
+        $redirect->from_path = $from;
+        $redirect->seo_page_id = $pageId;
+        $redirect->source = SeoRedirectsTable::SOURCE_MOVED;
+        $this->redirectsTable()->saveOrFail($redirect);
+        $this->redirects++;
+    }
+
+    /**
+     * The redirect for an old path: the stored one, or a new empty one.
+     */
+    private function redirectFor(string $from): SeoRedirect
+    {
+        /** @var \TheMusicDev\Seo\Model\Entity\SeoRedirect|null $redirect */
+        $redirect = $this->redirectsTable()->find()->where(['from_path' => $from])->first();
+
+        /** @var \TheMusicDev\Seo\Model\Entity\SeoRedirect */
+        return $redirect ?? $this->redirectsTable()->newEmptyEntity();
+    }
+
+    /**
+     * Make the page's `declared` redirects match its `redirectsFrom` list: add new
+     * ones, remove ones no longer listed. A listed path that is another page's own
+     * path is reported and skipped — the live page wins.
+     */
+    private function syncDeclared(int $pageId, string $composite, PageData $page): void
+    {
+        $declared = $this->cleanPaths($page->redirectsFrom);
+        $redirects = $this->redirectsTable();
+
+        $current = $redirects->find()
+            ->select(['id', 'from_path'])
+            ->where(['seo_page_id' => $pageId, 'source' => SeoRedirectsTable::SOURCE_DECLARED])
+            ->disableHydration();
+        foreach ($current as $row) {
+            if (!in_array($row['from_path'], $declared, true)) {
+                $redirects->deleteAll(['id' => $row['id']]);
+            }
+        }
+
+        foreach ($declared as $from) {
+            if ($from === $page->path) {
+                continue;
+            }
+            $owner = $this->pathOwner[$from] ?? null;
+            if ($owner !== null && $owner !== $composite) {
+                $this->conflicts[] = sprintf(
+                    '%s declares the old URL %s, but that is the path of %s',
+                    $this->label($composite),
+                    $from,
+                    $this->label($owner),
+                );
+                continue;
+            }
+            $redirect = $this->redirectFor($from);
+            if (!$redirect->isNew() && (int)$redirect->seo_page_id === $pageId) {
+                continue;
+            }
+            $redirect->from_path = $from;
+            $redirect->seo_page_id = $pageId;
+            $redirect->source = SeoRedirectsTable::SOURCE_DECLARED;
+            $redirects->saveOrFail($redirect);
+            $this->redirects++;
+        }
+    }
+
+    /**
+     * After the run: a redirect whose old path is now a page's own path (a path
+     * that came back into use, or was taken by another page) is dropped — the
+     * page wins. A dropped `declared` one is reported; a `moved` one is silent.
+     */
+    private function dropRedirectsThatAreNowPages(): void
+    {
+        $redirects = $this->redirectsTable();
+        $clashing = $redirects->find()
+            ->select(['SeoRedirects.id', 'SeoRedirects.from_path', 'SeoRedirects.source'])
+            ->join(['p' => [
+                'table' => 'seo_pages',
+                'type' => 'INNER',
+                'conditions' => 'p.path = SeoRedirects.from_path',
+            ]])
+            ->disableHydration()
+            ->all();
+        foreach ($clashing as $row) {
+            if ($row['source'] === SeoRedirectsTable::SOURCE_DECLARED) {
+                $this->conflicts[] = sprintf('Declared redirect from %s dropped: it is now a page', $row['from_path']);
+            }
+            $redirects->deleteAll(['id' => $row['id']]);
+        }
+    }
+
+    /**
+     * Declared old paths, normalized: one leading slash, none trailing, no root,
+     * no duplicates.
+     *
+     * @param list<string> $paths
+     * @return list<string>
+     */
+    private function cleanPaths(array $paths): array
+    {
+        $clean = [];
+        foreach ($paths as $path) {
+            $path = '/' . trim($path, '/');
+            if ($path !== '/') {
+                $clean[$path] = $path;
+            }
+        }
+
+        return array_values($clean);
+    }
+
+    /**
+     * The redirects table.
+     */
+    private function redirectsTable(): SeoRedirectsTable
+    {
+        /** @var \TheMusicDev\Seo\Model\Table\SeoRedirectsTable */
+        return $this->fetchTable('TheMusicDev/Seo.SeoRedirects');
     }
 
     /**

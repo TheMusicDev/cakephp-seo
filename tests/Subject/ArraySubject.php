@@ -31,6 +31,13 @@ final class ArraySubject implements SubjectInterface
      */
     public static ?array $schema = null;
 
+    /**
+     * Old paths a page declares: key => [id => list of paths].
+     *
+     * @var array<string, array<string, list<string>>>
+     */
+    public static array $redirectsFrom = [];
+
     public function __construct(private string $key)
     {
     }
@@ -40,6 +47,7 @@ final class ArraySubject implements SubjectInterface
         self::$pages = [];
         self::$lastmod = null;
         self::$schema = null;
+        self::$redirectsFrom = [];
     }
 
     /**
@@ -59,6 +67,12 @@ final class ArraySubject implements SubjectInterface
 
     public function toPage(mixed $row): PageData
     {
-        return new PageData(path: $row->path, title: 'Page ' . $row->id, lastmod: self::$lastmod, schema: self::$schema);
+        return new PageData(
+            path: $row->path,
+            title: 'Page ' . $row->id,
+            lastmod: self::$lastmod,
+            schema: self::$schema,
+            redirectsFrom: self::$redirectsFrom[$this->key][$row->id] ?? [],
+        );
     }
 }

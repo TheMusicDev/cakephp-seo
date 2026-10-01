@@ -28,6 +28,9 @@ return [
             // @graph; build them with TheMusicDev\Seo\Schema\Schema.
             'schema' => [],
         ],
+        // Paths the redirects middleware never looks up (it queries the database).
+        // List anything that is not a Seo page: the admin, a health probe, uploads.
+        'redirects' => ['skip' => []],
         // URLs per sitemap file (the protocol allows 50,000); a subject with
         // more pages is split into numbered files.
         'sitemap' => ['pageSize' => 10000],

@@ -22,6 +22,7 @@ final class SeoRebuildCommandTest extends TestCase
     {
         parent::setUp();
         $this->originalSubjects = Configure::read('Seo.subjects');
+        TableRegistry::getTableLocator()->get('TheMusicDev/Seo.SeoRedirects')->deleteAll([]);
         TableRegistry::getTableLocator()->get('TheMusicDev/Seo.SeoPages')->deleteAll([]);
         ArraySubject::reset();
     }
@@ -29,6 +30,7 @@ final class SeoRebuildCommandTest extends TestCase
     protected function tearDown(): void
     {
         Configure::write('Seo.subjects', $this->originalSubjects);
+        TableRegistry::getTableLocator()->get('TheMusicDev/Seo.SeoRedirects')->deleteAll([]);
         TableRegistry::getTableLocator()->get('TheMusicDev/Seo.SeoPages')->deleteAll([]);
         ArraySubject::reset();
         parent::tearDown();
@@ -54,6 +56,19 @@ final class SeoRebuildCommandTest extends TestCase
 
         $this->assertExitError();
         $this->assertErrorContains('Conflict');
+    }
+
+    public function testReportsTheRedirectsItRecorded(): void
+    {
+        Configure::write('Seo.subjects', ['s' => ArraySubject::class]);
+        ArraySubject::$pages = ['s' => ['a' => '/old']];
+        $this->exec('seo rebuild');
+        ArraySubject::$pages = ['s' => ['a' => '/new']];
+
+        $this->exec('seo rebuild');
+
+        $this->assertExitSuccess();
+        $this->assertOutputContains('Redirects recorded: 1');
     }
 
     public function testWarnsWhenNoSubjectsAreConfigured(): void

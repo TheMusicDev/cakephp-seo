@@ -22,6 +22,8 @@ final readonly class PageData
      * @param list<array<string, mixed>>|null $schema JSON-LD nodes (used by the structured-data feature).
      * @param string|null $ogType Open Graph type (`article`…); the head helper defaults to `website`.
      * @param string|null $ogImage Open Graph image, a path or URL; the site default image when null.
+     * @param list<string> $redirectsFrom Old paths of this page that should 301 to it (a legacy
+     *   column, a slug history…). The class can only list URLs it can know; it cannot invent them.
      */
     public function __construct(
         public string $path,
@@ -32,6 +34,7 @@ final readonly class PageData
         public ?array $schema = null,
         public ?string $ogType = null,
         public ?string $ogImage = null,
+        public array $redirectsFrom = [],
     ) {
     }
 }

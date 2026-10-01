@@ -8,6 +8,7 @@ use Cake\Http\ServerRequest;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 use Cake\View\View;
+use TheMusicDev\Seo\Model\Entity\SeoPage;
 use TheMusicDev\Seo\Model\Table\SeoPagesTable;
 use TheMusicDev\Seo\View\Helper\SeoHelper;
 
@@ -50,9 +51,13 @@ final class SeoHelperTest extends TestCase
     /**
      * @param array<string, mixed> $vars View variables.
      */
-    private function head(string $url, array $vars = []): string
+    private function head(string $url, array $vars = [], ?SeoPage $attached = null): string
     {
-        $view = new View(new ServerRequest(['url' => $url]));
+        $request = new ServerRequest(['url' => $url]);
+        if ($attached !== null) {
+            $request = $request->withAttribute('seo.page', $attached);
+        }
+        $view = new View($request);
         $view->set($vars);
 
         /** @var \TheMusicDev\Seo\View\Helper\SeoHelper $seo */
@@ -380,5 +385,28 @@ final class SeoHelperTest extends TestCase
         $row = $this->pages->find()->where(['path' => '/round'])->firstOrFail();
 
         $this->assertSame($nodes, $row->schema);
+    }
+
+    /**
+     * The redirects middleware attaches the live row it already found; the helper
+     * uses it instead of querying again (proved here by a row that is not in the table).
+     */
+    public function testARowAttachedToTheRequestIsUsedWithoutAQuery(): void
+    {
+        $attached = new SeoPage(['path' => '/attached', 'title' => 'Attached title', 'description' => 'D', 'status' => 'live']);
+
+        $head = $this->head('/attached', [], $attached);
+
+        $this->assertStringContainsString('<title>Attached title — Acme</title>', $head);
+    }
+
+    public function testAnExplicitSeoPageVariableStillWinsOverTheAttachedRow(): void
+    {
+        $this->seed('/real', ['subject' => 'Blog.Posts', 'subject_id' => '9', 'title' => 'Chosen']);
+        $attached = new SeoPage(['path' => '/attached', 'title' => 'Attached title', 'status' => 'live']);
+
+        $head = $this->head('/attached', ['seoPage' => ['Blog.Posts', 9]], $attached);
+
+        $this->assertStringContainsString('<title>Chosen — Acme</title>', $head);
     }
 }

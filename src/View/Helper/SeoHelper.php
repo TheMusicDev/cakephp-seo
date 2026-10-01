@@ -184,6 +184,12 @@ class SeoHelper extends Helper
         }
         $this->looked = true;
 
+        // The redirects middleware already found this request's live row.
+        $attached = $this->_View->getRequest()->getAttribute('seo.page');
+        if ($attached instanceof SeoPage && !is_array($this->_View->get('seoPage'))) {
+            return $this->page = $attached;
+        }
+
         /** @var \TheMusicDev\Seo\Model\Table\SeoPagesTable $pages */
         $pages = $this->fetchTable('TheMusicDev/Seo.SeoPages');
         $query = $pages->find('live');

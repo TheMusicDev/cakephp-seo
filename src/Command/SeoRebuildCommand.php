@@ -52,6 +52,9 @@ final class SeoRebuildCommand extends Command
                 $counts['gone'],
             ));
         }
+        if ($report['redirects'] > 0) {
+            $io->out(sprintf('Redirects recorded: %d', $report['redirects']));
+        }
         foreach ($report['conflicts'] as $conflict) {
             $io->err('Conflict: ' . $conflict);
         }
