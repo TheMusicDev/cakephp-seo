@@ -182,6 +182,115 @@ final class PageIndexer
 
         $this->dropRedirectsThatAreNowPages();
 
+        return $this->report();
+    }
+
+    /**
+     * Re-index one row: what `rebuild()` does, for a single (subject, id) — a changed
+     * path records a redirect, a row that is no longer public goes `gone`, a republished
+     * one revives. Nothing else is touched. Meant for a queued job after a publish or
+     * edit (`bin/cake seo sync`); the nightly rebuild remains the source of truth.
+     *
+     * A path held by a *live* page of another row is a conflict and nothing is saved
+     * (only a full rebuild can tell whether that page is leaving, e.g. a swap); a path
+     * held by a `gone` page is reused, as in a rebuild.
+     *
+     * @param array<string, class-string<\TheMusicDev\Seo\Subject\SubjectInterface>>|null $subjects Defaults to Configure `Seo.subjects`.
+     * @return array{subjects: array<string, array{created: int, updated: int, unchanged: int, gone: int}>, conflicts: list<string>, redirects: int}
+     * @throws \InvalidArgumentException When the subject key is not configured.
+     */
+    public function sync(string $key, string $id, ?array $subjects = null): array
+    {
+        /** @var array<string, class-string<\TheMusicDev\Seo\Subject\SubjectInterface>> $subjects */
+        $subjects ??= (array)Configure::read('Seo.subjects', []);
+        $class = $subjects[$key] ?? throw new InvalidArgumentException(
+            "Unknown subject '{$key}': it is not in Seo.subjects.",
+        );
+        $subject = $this->subject($key, $class);
+
+        $pages = $this->pages();
+        $composite = $this->composite($key, $id);
+        $this->counts = [$key => $this->emptyCounts()];
+        $this->existing = [];
+        $this->pathOwner = [];
+        $this->conflicts = [];
+        $this->redirects = 0;
+
+        $stored = $pages->find()
+            ->select(['id', 'subject', 'subject_id', 'path', 'status', 'checksum'])
+            ->where(['subject' => $key, 'subject_id' => $id])
+            ->disableHydration()
+            ->first();
+        if ($stored !== null) {
+            $this->existing[$composite] = [
+                'id' => (int)$stored['id'],
+                'subject' => $key,
+                'path' => (string)$stored['path'],
+                'status' => (string)$stored['status'],
+                'checksum' => $stored['checksum'] === null ? null : (string)$stored['checksum'],
+            ];
+            $this->pathOwner[(string)$stored['path']] = $composite;
+        }
+
+        $row = $subject->row($id);
+        if ($row === null) {
+            if ($stored !== null && $stored['status'] === SeoPagesTable::STATUS_LIVE) {
+                $pages->updateAll(
+                    ['status' => SeoPagesTable::STATUS_GONE, 'modified' => DateTime::now()],
+                    ['id' => $stored['id']],
+                );
+                $this->bump($key, 'gone');
+            }
+
+            return $this->report();
+        }
+
+        $page = $subject->toPage($row);
+
+        // Who holds the path (and each declared old path) besides this row.
+        $wanted = array_values(array_unique([$page->path, ...$this->cleanPaths($page->redirectsFrom)]));
+        $holders = $pages->find()
+            ->select(['id', 'subject', 'subject_id', 'path', 'status'])
+            ->where(['path IN' => $wanted])
+            ->disableHydration();
+        foreach ($holders as $holder) {
+            $holderComposite = $this->composite((string)$holder['subject'], (string)$holder['subject_id']);
+            if ($holderComposite === $composite) {
+                continue;
+            }
+            if ($holder['path'] === $page->path && $holder['status'] === SeoPagesTable::STATUS_GONE) {
+                // A removed page's path is free to reuse; its redirects go with it (FK cascade).
+                $pages->deleteAll(['id' => $holder['id']]);
+                continue;
+            }
+            $this->pathOwner[(string)$holder['path']] = $holderComposite;
+        }
+        $owner = $this->pathOwner[$page->path] ?? null;
+        if ($owner !== null && $owner !== $composite) {
+            $this->conflicts[] = sprintf(
+                '%s wants %s, held by %s (run `seo rebuild` to settle it)',
+                $this->label($composite),
+                $page->path,
+                $this->label($owner),
+            );
+
+            return $this->report();
+        }
+
+        $this->store($key, $id, $page);
+        // The page wins over any redirect that used to start at its path.
+        $this->redirectsTable()->deleteAll(['from_path' => $page->path]);
+
+        return $this->report();
+    }
+
+    /**
+     * The result of the current run.
+     *
+     * @return array{subjects: array<string, array{created: int, updated: int, unchanged: int, gone: int}>, conflicts: list<string>, redirects: int}
+     */
+    private function report(): array
+    {
         return ['subjects' => $this->counts, 'conflicts' => $this->conflicts, 'redirects' => $this->redirects];
     }
 

@@ -75,6 +75,16 @@ abstract class TableSubject implements SubjectInterface
     /**
      * @inheritDoc
      */
+    public function row(string $id): mixed
+    {
+        return $this->query($this->table)
+            ->where([$this->table->aliasField($this->primaryKey()) => $id])
+            ->first();
+    }
+
+    /**
+     * @inheritDoc
+     */
     public function idOf(mixed $row): string
     {
         return (string)$this->entity($row)->get($this->primaryKey());

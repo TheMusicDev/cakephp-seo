@@ -48,6 +48,28 @@ final class StaticPageSubjectTest extends TestCase
         return (new PageIndexer())->rebuild(['static' => FixedPagesSubject::class]);
     }
 
+    public function testRowIsTheIdForAKnownPageAndNullForAnUnknownOne(): void
+    {
+        $subject = new FixedPagesSubject('static');
+
+        $this->assertSame('about', $subject->row('about'));
+        $this->assertNull($subject->row('nope'));
+    }
+
+    public function testSyncingOnePageUpdatesOnlyThatPage(): void
+    {
+        $this->rebuild();
+        FixedPagesSubject::$list = [
+            'home' => new PageData(path: '/', title: 'Home v2'),
+            'about' => new PageData(path: '/about/', title: 'About v2'),
+        ];
+
+        (new PageIndexer())->sync('static', 'home', ['static' => FixedPagesSubject::class]);
+
+        $titles = $this->pages->find()->all()->combine('subject_id', 'title')->toArray();
+        $this->assertSame(['home' => 'Home v2', 'about' => 'About'], $titles);
+    }
+
     public function testRowsAreThePageIdsAndEachResolvesToItsPage(): void
     {
         $subject = new FixedPagesSubject('static');

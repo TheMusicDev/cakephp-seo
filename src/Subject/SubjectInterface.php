@@ -21,6 +21,15 @@ interface SubjectInterface
     public function rows(): iterable;
 
     /**
+     * One row by id, or null when it is not public right now (missing, unpublished,
+     * trashed…). The same public scope as `rows()`: it is what `bin/cake seo sync`
+     * asks to re-index a single page.
+     *
+     * @param string $id An id as returned by `idOf()`.
+     */
+    public function row(string $id): mixed;
+
+    /**
      * Stable id of a row within this subject (a primary key, or a fixed string
      * for static pages). Stored as a string.
      *

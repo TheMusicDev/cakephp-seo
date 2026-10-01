@@ -60,6 +60,13 @@ final class ArraySubject implements SubjectInterface
         }
     }
 
+    public function row(string $id): mixed
+    {
+        $path = self::$pages[$this->key][$id] ?? null;
+
+        return $path === null ? null : (object)['id' => $id, 'path' => $path];
+    }
+
     public function idOf(mixed $row): string
     {
         return $row->id;

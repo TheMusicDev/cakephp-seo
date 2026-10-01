@@ -61,6 +61,20 @@ final class TableSubjectTest extends TestCase
         $this->assertSame((string)$live, (new PagesTableSubject(self::ALIAS))->idOf($rows[0]));
     }
 
+    public function testRowFindsOnePublicRowByIdAndNothingForAHiddenOrMissingOne(): void
+    {
+        $live = $this->seed('a', 'live');
+        $gone = $this->seed('b', 'gone');
+        $subject = new PagesTableSubject(self::ALIAS);
+
+        $row = $subject->row((string)$live);
+
+        $this->assertNotNull($row);
+        $this->assertSame((string)$live, $subject->idOf($row));
+        $this->assertNull($subject->row((string)$gone), 'outside the public query');
+        $this->assertNull($subject->row('999999'));
+    }
+
     public function testRowsAreStreamedInChunksInPrimaryKeyOrderWithNoneSkippedOrRepeated(): void
     {
         $ids = [];

@@ -47,6 +47,50 @@ final class SeoRebuildCommandTest extends TestCase
         $this->assertOutputContains('s: 2 created, 0 updated, 0 unchanged, 0 gone');
     }
 
+    public function testSyncReindexesOneRow(): void
+    {
+        Configure::write('Seo.subjects', ['s' => ArraySubject::class]);
+        ArraySubject::$pages = ['s' => ['a' => '/a', 'b' => '/b']];
+        $this->exec('seo rebuild');
+        ArraySubject::$pages = ['s' => ['a' => '/a-new', 'b' => '/b-new']];
+
+        $this->exec('seo sync s a');
+
+        $this->assertExitSuccess();
+        $this->assertOutputContains('s#a: 0 created, 1 updated, 0 unchanged, 0 gone');
+        $this->assertOutputContains('Redirects recorded: 1');
+    }
+
+    public function testSyncOfAnUnknownSubjectFails(): void
+    {
+        Configure::write('Seo.subjects', ['s' => ArraySubject::class]);
+
+        $this->exec('seo sync nope 1');
+
+        $this->assertExitError();
+        $this->assertErrorContains("Unknown subject 'nope'");
+    }
+
+    public function testSyncExitsNonZeroOnAPathClash(): void
+    {
+        Configure::write('Seo.subjects', ['s' => ArraySubject::class]);
+        ArraySubject::$pages = ['s' => ['a' => '/a', 'b' => '/b']];
+        $this->exec('seo rebuild');
+        ArraySubject::$pages = ['s' => ['a' => '/b', 'b' => '/b2']];
+
+        $this->exec('seo sync s a');
+
+        $this->assertExitError();
+        $this->assertErrorContains('Conflict: s#a wants /b, held by s#b');
+    }
+
+    public function testSyncNeedsASubjectAndAnId(): void
+    {
+        $this->exec('seo sync s');
+
+        $this->assertExitError();
+    }
+
     public function testExitsNonZeroWhenTwoPagesClaimOnePath(): void
     {
         Configure::write('Seo.subjects', ['one' => ArraySubject::class, 'two' => ArraySubject::class]);

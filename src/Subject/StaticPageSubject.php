@@ -44,6 +44,14 @@ abstract class StaticPageSubject implements SubjectInterface
     /**
      * @inheritDoc
      */
+    public function row(string $id): mixed
+    {
+        return isset($this->list()[$id]) ? $id : null;
+    }
+
+    /**
+     * @inheritDoc
+     */
     public function idOf(mixed $row): string
     {
         return (string)$row;
