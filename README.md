@@ -65,6 +65,35 @@ subject rows and skips unchanged pages by checksum: about 54 MB and 0.2 s for
 `bin/cake schema_cache clear` (Cake silently ignores columns its cached schema
 does not know).
 
+## Near-live updates: `seo sync`
+
+`bin/cake seo sync <subject> <id>` re-indexes **one row** with the same rules as a
+rebuild — a changed path records a redirect, a row that stopped being public goes
+`gone` (410), a republished one revives — and touches nothing else. The subject is the
+`Seo.subjects` key (`TheMusicDev/Recruiting.JobPostings`, `static`), the id its primary
+key. It exits non-zero on an unknown subject or when the row's new path is held by a
+*live* page of another row (a swap or a clash: only `seo rebuild` can settle that; a path
+held by a `gone` page is reused). The nightly rebuild stays the source of truth.
+
+Nothing triggers it for you. To make a publish or edit show up in the index at once,
+queue it from wherever the host saves (an admin action, a model event):
+
+```php
+$this->fetchTable('Queue.QueuedJobs')->createJob('Queue.Execute', [
+    'command' => 'bin/cake',
+    'params' => ['seo', 'sync', 'TheMusicDev/Recruiting.JobPostings', (string)$job->id],
+]);
+```
+
+(or `bin/cake queue add Queue.Execute "bin/cake seo sync <subject> <id>"` by hand), with a
+worker running (`bin/cake queue run`). **In production** (debug off) `Queue.Execute`
+refuses any command that is not in the allow-list, and the job fails with "is not in
+Queue.executeAllowedCommands": add the command verbatim to the host's queue config —
+`'Queue' => ['executeAllowedCommands' => ['bin/cake']]`. That entry allows every
+`bin/cake` command from a queued job, so only code you wrote should be creating
+`Queue.Execute` jobs. `SubjectInterface::row($id)` is what a subject supplies for this
+(`TableSubject` and `StaticPageSubject` already do).
+
 ## Tests
 
 `vendor/bin/phpunit --testsuite seo` (plugin tests live in `tests/`; the host's

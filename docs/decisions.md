@@ -5,6 +5,43 @@ Why + what bit us while building. The **design of record** is
 [delivery-plan.md](delivery-plan.md) is the build order. This file records
 decisions made *during* the build and the gotchas the code hit.
 
+## F8 — sync command (built 2026-10-01)
+
+**Decisions**
+
+- **`SubjectInterface::row(string $id): mixed`** is the one new method a subject needs: the
+  row if it is public *now*, else null — the same scope as `rows()`. `TableSubject` runs
+  `query()` plus a primary-key `where`, so a draft or trashed row is "not public" without
+  host code; `StaticPageSubject` checks its list. (A host that implements the interface
+  directly, not through the two bases, must add it.)
+- **`PageIndexer::sync($key, $id)` reuses `store()`** — the code path that writes, records
+  moved/declared redirects and counts is the rebuild's, fed one row. It loads only that
+  row's stored copy, plus the pages holding its new path and its declared old paths.
+- **A path held by another *live* page is a conflict and nothing is saved.** A rebuild can
+  look at the whole run and tell a swap (`a`↔`b`) from a clash; one row cannot, so it
+  refuses and says to run `seo rebuild`. A path held by a `gone` page is reused (that page
+  is deleted, its redirects cascade), as in a rebuild.
+- **Only this row is touched**: no gone-marking of other rows, no global sweep. The one
+  redirect cleanup is scoped to this page's path (a redirect that started where the page now
+  is is dropped — the page wins), instead of `dropRedirectsThatAreNowPages()`'s whole-table join.
+- **Unknown subject → `InvalidArgumentException` (exit 1)**; an id that is not public and was
+  never indexed is a quiet no-op (a queued job for a row deleted meanwhile must not fail and
+  retry).
+- **No automatic trigger** (D3): the host decides where to queue it; the README has the recipe.
+
+**Verified end to end on the dev stack:** edit the dev job's title in the database →
+`bin/cake queue add Queue.Execute "bin/cake seo sync …"` → `bin/cake queue run` → the job
+completed and `seo_pages.title` changed, nothing else. (Restored afterwards.)
+
+**Gotchas**
+
+- **The task key is `Queue.Execute`**, not `Execute`: `queue add Execute …` answers "Not a
+  supported task."
+- **With debug off the job fails** with `Command \`bin/cake\` is not in
+  Queue.executeAllowedCommands allow-list` until the host lists `bin/cake` — reproduced with
+  `DEBUG=false bin/cake queue run`. That allows every `bin/cake` command from a queued job.
+- **Test classes cannot define a method named `status()` or `run()`** (final in PHPUnit).
+
 ## F7 — robots.txt (built 2026-10-01)
 
 **Decisions**
