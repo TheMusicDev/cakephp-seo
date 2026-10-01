@@ -5,6 +5,56 @@ Why + what bit us while building. The **design of record** is
 [delivery-plan.md](delivery-plan.md) is the build order. This file records
 decisions made *during* the build and the gotchas the code hit.
 
+## F5 — structured data (built 2026-10-01)
+
+**Decisions**
+
+- **One JSON-LD block per page, one `@graph`.** `SeoHelper::head()` ends with a
+  single `<script type="application/ld+json">` holding the **site-wide nodes**
+  (`Seo.site.schema`: Organization, WebSite — built in the host from `BusinessInfo`)
+  followed by the **page row's own nodes** (`seo_pages.schema`). Pages with no row
+  (apply pages, errors) still get the site-wide nodes; a `gone` row contributes
+  nothing. The layout's hand-written Organization block is gone (A18).
+- **The subject builds the nodes, the row stores them** (A10). `seo_pages.schema` is
+  typed `json` in `SeoPagesTable`, so the entity holds a PHP array; it is part of the
+  checksum, so a changed node is detected by the rebuild.
+- **`Schema` builders, not a registry** (A13): `organization`, `website`,
+  `breadcrumbs`, `jobPosting` return plain arrays and leave out every null/empty
+  part. Hosts return any other type as a plain array. Pay is emitted only with a
+  valid unit and a **positive** amount (0 is "no pay"); an `employmentType` outside
+  schema.org's list is dropped, never guessed; a range needs two different amounts.
+- **Paths in `url` / `item` become absolute at render**, like the canonical. Nodes are
+  stored with paths, so a rebuild run in the CLI with the wrong base URL cannot bake
+  `http://localhost` into the stored JSON.
+- **`hiringOrganization` is embedded (`@type`, `@id`, `name`), not a bare `{"@id"}`.**
+  The `@id` joins it to the graph's Organization node; the inline `name` keeps parsers
+  that do not resolve node references (Google's `JobPosting` wants a name) satisfied.
+  Worth re-checking with Google's Rich Results Test once deployed.
+- **Policy lives in the host's `JobPostingSubject`, not the plugin:** country (`US`) for
+  remote applicants and on-site jobs, currency (`USD`), the job-type → `employmentType`
+  mapping (Full-time, Part-time, Contract, Temporary, Internship, Volunteer, Per diem;
+  anything else is omitted), and "location is `Remote`" ⇒ `TELECOMMUTE` (Google
+  requires `applicantLocationRequirements` for remote jobs, so the country is always sent).
+- **The description is the rendered sections** (`<h2>` + HTML), exactly what the visitor
+  reads — Google requires the markup to match the page.
+- **Structured pay and an expiry are Recruiting columns** (`salary_min`, `salary_max`,
+  `salary_unit`, `valid_through`), optional, edited under "For search engines" in the
+  admin job form. `compensation` stays the free-text display value. "Apply by" is an
+  inclusive date, stored as the last second of that day (`validThrough`).
+- **Job pages carry a `BreadcrumbList`** (Home › Careers › the job).
+
+**Gotchas**
+
+- **Cake only validates a field that is present in the data**, so "an amount needs a
+  unit" is also a conditional `requirePresence`; the admin form always sends every key,
+  which hid the gap until a table-level test posted a payload without `salary_unit`.
+- **`(string)` on a `DateTime` is locale-formatted**, not `Y-m-d`; the date input gets
+  its value from `->format('Y-m-d')`. Blank new fields are `null`, not `''`, so a
+  template must not assume `$posting` is set on the add form.
+- **A migration that adds columns needs `bin/cake schema_cache clear`**, again.
+- **The HEX flags** (`JSON_HEX_TAG|AMP|APOS|QUOT`) make a `</script>` inside any value
+  impossible; `testAValueCannotBreakOutOfTheScriptBlock` pins it.
+
 ## F4 — head helper (built 2026-09-30)
 
 **Decisions**

@@ -109,6 +109,34 @@ Subjects set `ogType` / `ogImage` per page in `PageData`. The canonical is a rea
 `bin/cake seo rebuild` on deploy, before traffic** — before the first rebuild a page
 renders the bare site name and an empty description.
 
+## Structured data (JSON-LD)
+
+`$this->Seo->head()` also prints one `<script type="application/ld+json">` with a single
+`@graph`: the **site-wide nodes** from `Seo.site.schema` (Organization, WebSite…), then the
+page row's own nodes. A subject puts them in `PageData::$schema`; the rebuild stores them.
+
+```php
+// host config/app.php — on every page
+'Seo' => ['site' => ['schema' => [
+    Schema::organization(name: 'Acme', url: 'https://acme.test', id: 'https://acme.test/#organization'),
+    Schema::website(name: 'Acme', url: 'https://acme.test', id: 'https://acme.test/#website',
+        publisherId: 'https://acme.test/#organization'),
+]]]
+
+// a subject's pageFor() — this page only
+return new PageData(path: $path, title: $title, schema: [
+    Schema::jobPosting(title: $t, description: $html, datePosted: $date, url: $path,
+        employmentType: 'FULL_TIME', salaryMin: 45, salaryUnit: 'HOUR', remote: true, applicantCountry: 'US'),
+    Schema::breadcrumbs([['name' => 'Home', 'path' => '/'], ['name' => $t]]),
+]);
+```
+
+`TheMusicDev\Seo\Schema\Schema` builds `organization`, `website`, `breadcrumbs` and
+`jobPosting`; any other schema.org type is just a plain array. Builders leave out every empty
+part, never guess (pay needs a valid unit and a positive amount; an unknown `employmentType` is
+dropped). `url` / `item` values given as paths are made absolute at render. Output is encoded
+with the `JSON_HEX_*` flags so no value can close the script block.
+
 ## URL form
 
 The plugin stores and lists paths **exactly as your subjects return them** and never
