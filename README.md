@@ -109,6 +109,29 @@ Subjects set `ogType` / `ogImage` per page in `PageData`. The canonical is a rea
 `bin/cake seo rebuild` on deploy, before traffic** — before the first rebuild a page
 renders the bare site name and an empty description.
 
+## Redirects and 410
+
+When a page's path changes (a slug renamed, a route moved) the rebuild records the old path
+as a **301** to the page; a subject can also declare old paths (`PageData::$redirectsFrom`).
+A page that stops being public (unpublished, trashed) answers **410 Gone**, and so does every
+old URL that pointed at it. A redirect points at the page itself, so nothing ever chains, and
+an old path that becomes a live page again simply stops redirecting.
+
+Install the middleware in the host, **after the trailing-slash redirect and before routing**:
+
+```php
+->add(SeoRedirectsMiddleware::fromConfig())
+```
+
+```php
+'Seo' => ['redirects' => ['skip' => ['/admin', '/files', '/health']]],   // never looked up
+```
+
+It queries the database for every other path, so list what is never a page — especially a
+health probe. If the lookup fails (database down) the request goes through unchanged and the
+failure is logged. Only GET and HEAD are handled. It needs `bin/cake seo rebuild` to have run:
+redirects and 410s exist only for what the index knows.
+
 ## Structured data (JSON-LD)
 
 `$this->Seo->head()` also prints one `<script type="application/ld+json">` with a single

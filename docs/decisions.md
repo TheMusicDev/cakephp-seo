@@ -5,6 +5,55 @@ Why + what bit us while building. The **design of record** is
 [delivery-plan.md](delivery-plan.md) is the build order. This file records
 decisions made *during* the build and the gotchas the code hit.
 
+## F6 — redirects and 410 (built 2026-10-01)
+
+**Decisions**
+
+- **`seo_redirects`** (`from_path` unique, `seo_page_id`, `source`, `created`): an old path
+  that 301s to a page. It points at the page **row**, not a target path, so the target is
+  resolved at request time and a page that moves twice leaves `/a` and `/b` both pointing at
+  the same row — nothing ever chains (A8). `source` is `moved` (the rebuild saw the stored
+  path change) or `declared` (the subject listed it in `PageData::$redirectsFrom`, A14).
+- **The rebuild records moves and syncs declarations while it streams.** A changed path
+  adds a `moved` redirect from the old one; `redirectsFrom` is part of the checksum, so
+  unchanged pages cost nothing and a changed list re-syncs (dropped declared paths go,
+  `moved` ones stay). Paths are normalized (one leading slash, none trailing, no root).
+- **A live path is never also a redirect.** After the run, any redirect whose old path is
+  now some page's own path (it came back into use, or another page took it) is deleted —
+  the page wins. A dropped `declared` one is reported as a conflict (exit code non-zero);
+  a `moved` one is silent. A declared old path that is already another page's path is
+  skipped and reported straight away.
+- **Deleting a page deletes its redirects** — FK `ON DELETE CASCADE` on
+  `seo_redirects.seo_page_id`.
+- **The middleware (A15)** runs after TrailingSlash and before routing, GET/HEAD only:
+  a path that is a **gone** page → **410**; an old path → **301** to the page's current
+  path (query kept) or 410 when that page is gone; a live page passes through with its row
+  attached as the request attribute `seo.page` (the head helper reuses it instead of querying
+  again); anything else passes untouched. An unpublished or trashed job therefore answers
+  410 *before* the controller can 404 (G5).
+- **It fails open.** If the lookup throws (database down) the request goes through and the
+  failure is logged: a missing redirect must never take a page down. `Seo.redirects.skip`
+  lists path prefixes that are never looked up (the host skips `/admin`, `/files`, `/setup`
+  and `/health` — the health probe must stay database-free). Prefixes match whole path
+  segments (`/admin` skips `/admin/jobs`, not `/administer`).
+- **A 410 is a `GoneException`**, so the normal error handling renders it; Cake maps every
+  4xx to one `error400` template, so that template is code-aware ("This page is gone" for 410).
+- **Only Seo pages are covered.** The apply page of a removed job is not a page row: it is the
+  controller's own 404. Old URLs with no successor stay a 404 (D6, v2).
+
+**Gotchas**
+
+- **Tests clear `seo_redirects` before `seo_pages`** (children first, the usual rule); the
+  FK also cascades, so clearing the pages alone works on MariaDB too.
+- **A renamed job's old URL *with* a trailing slash takes two hops** (the slash is stripped
+  first, then the 301) — each hop is a single permanent redirect, no chain of redirect rows.
+- **Cost:** one indexed query per non-skipped request (two for an old path that misses the
+  page table); the head helper adds none because of `seo.page`.
+- **`dropRedirectsThatAreNowPages` uses a raw join** (`p.path = SeoRedirects.from_path`); the
+  ORM has no association between the two on a non-key column.
+- **Cake's `GoneException`/`error400` copy:** debug mode shows the dev error page, so the
+  410 wording is tested with `debug` off.
+
 ## F5 — structured data (built 2026-10-01)
 
 **Decisions**
@@ -242,8 +291,7 @@ site has that many pages.
   `job-postings` and `the-music-dev-recruiting-job-postings`. An earlier
   hand-written helper is gone.
 - **`MAX(lastmod)` is a plain string to the ORM unless typed:** the index query
-  adds `latest => datetime` to the select type map. Verified on both MariaDB
-  and CI's sqlite.
+  adds `latest => datetime` to the select type map. Verified on MariaDB.
 - **`robots.txt` still advertises `/sitemap-index.xml`** (F7 will generate that
   file). The host test `tests/TestCase/Seo/RobotsSitemapLinkTest.php` reads the real
   `webroot/robots.txt` and requests the URL it names, so the original 404 (G1)
@@ -307,7 +355,7 @@ site has that many pages.
   breaking the truncation on purpose).
 - **Plugin tables: dev database by hand, test database automatic.** Migrate the
   dev database with `bin/cake migrations migrate -p TheMusicDev/Seo`. The test
-  database (local MariaDB and CI sqlite) is migrated by `tests/bootstrap.php`,
+  database (local and CI MariaDB) is migrated by `tests/bootstrap.php`,
   which lists every plugin that owns tables in a `Migrator::runMany()` call —
   a new plugin with migrations must be added there. (Until 2026-09-30 the
   bootstrap ran `Migrator::run()`, which migrates only the app: a fresh
