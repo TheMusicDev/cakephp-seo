@@ -2,6 +2,6 @@ parameters:
 	level: 8
 	treatPhpDocTypesAsCertain: false
 	bootstrapFiles:
-		- tests/bootstrap.php
+		- tests/environment.php
 	paths:
 		- src/
