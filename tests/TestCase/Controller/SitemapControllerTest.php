@@ -7,6 +7,7 @@ use Cake\Core\Configure;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
+use TestApp\Application;
 use TheMusicDev\Seo\Lib\PageIndexer;
 use TheMusicDev\Seo\Test\Subject\ArraySubject;
 
@@ -21,6 +22,7 @@ final class SitemapControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->configApplication(Application::class, [CONFIG]);
         TableRegistry::getTableLocator()->get('TheMusicDev/Seo.SeoPages')->deleteAll([]);
         ArraySubject::reset();
     }

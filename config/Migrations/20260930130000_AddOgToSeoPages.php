@@ -11,6 +11,11 @@ use Migrations\BaseMigration;
  */
 final class AddOgToSeoPages extends BaseMigration
 {
+    /**
+     * Adds the og_type and og_image columns used by the head helper.
+     *
+     * @return void
+     */
     public function change(): void
     {
         $this->table('seo_pages')

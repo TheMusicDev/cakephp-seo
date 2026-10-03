@@ -11,6 +11,11 @@ use Migrations\BaseMigration;
  */
 final class AddChecksumToSeoPages extends BaseMigration
 {
+    /**
+     * Adds the checksum column the rebuild compares to skip unchanged pages.
+     *
+     * @return void
+     */
     public function change(): void
     {
         $this->table('seo_pages')

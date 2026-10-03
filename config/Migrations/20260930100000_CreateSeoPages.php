@@ -12,6 +12,11 @@ use Migrations\BaseMigration;
  */
 final class CreateSeoPages extends BaseMigration
 {
+    /**
+     * Creates seo_pages, the page index the head helper, sitemap and redirects read.
+     *
+     * @return void
+     */
     public function change(): void
     {
         $this->table('seo_pages')

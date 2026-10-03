@@ -15,6 +15,11 @@ final class CreateSeoRedirects extends BaseMigration
     /**
      * Create the seo_redirects table.
      */
+    /**
+     * Creates seo_redirects: old paths that 301 to a page row.
+     *
+     * @return void
+     */
     public function change(): void
     {
         $this->table('seo_redirects')

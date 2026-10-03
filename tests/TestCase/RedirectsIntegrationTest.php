@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 namespace TheMusicDev\Seo\Test\TestCase;
 
+use Cake\Core\Configure;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
+use TestApp\Application;
 
 /**
  * The middleware as a host installs it: before routing, so a path no route
@@ -18,6 +20,7 @@ final class RedirectsIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->configApplication(Application::class, [CONFIG]);
         $this->clean();
     }
 
@@ -72,6 +75,7 @@ final class RedirectsIntegrationTest extends TestCase
 
     public function testTheHealthProbeNeverTouchesTheIndex(): void
     {
+        Configure::write('Seo.redirects.skip', ['/health']);
         $this->seed('/health', 'gone'); // would be a 410 if it were looked up
 
         $this->get('/health');

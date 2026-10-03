@@ -6,6 +6,7 @@ namespace TheMusicDev\Seo\Test\TestCase\Controller;
 use Cake\Core\Configure;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
+use TestApp\Application;
 
 /**
  * /robots.txt as the host serves it: plain text, rules from config, the sitemap
@@ -20,6 +21,7 @@ final class RobotsControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->configApplication(Application::class, [CONFIG]);
         $this->original = Configure::read('Seo.robots');
     }
 
