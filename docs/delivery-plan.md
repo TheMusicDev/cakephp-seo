@@ -262,7 +262,7 @@ README recipe works end-to-end against a worker in the dev stack.
       the two host classes, the middleware wiring, gotchas).
 - [ ] Reasoning moved from the tracker into `docs/decisions.md`, tracker
       reduced to a pointer as with the other plugins.
-- [ ] `docs/conventions.md` plugin entry; CLAUDE.md Seo entry updated.
+- [ ] org conventions (`cakephp-conventions`, `plugins.md`) plugin entry; CLAUDE.md Seo entry updated.
 - [ ] `composer.json` version bumped from 0.1.0 to 1.0.0 (path repo, like the
       others).
 - [ ] Root README perf/config sections mention the Seo keys.
