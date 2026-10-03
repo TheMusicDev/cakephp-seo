@@ -1,29 +1,31 @@
 # TheMusicDev/Seo
 
-> **Status: in build.** F1 (page index) is done; sitemap, head tags, structured
-> data and redirects follow. What is agreed, what is open and the build order are
-> tracked in
-> [`docs/seo-plugin-design.md`](docs/seo-plugin-design.md) — read that first.
-> Build order and feature slices: [`docs/delivery-plan.md`](docs/delivery-plan.md).
+All-in-one SEO for CakePHP 5 sites, from one page index (`seo_pages`): the `<head>` tags (title, description,
+canonical, robots, Open Graph, Twitter), structured data (JSON-LD), XML sitemaps, a generated `robots.txt`, and
+301/410 redirects for pages that moved or were removed. Your domain code (articles, products, jobs…) gets SEO
+without knowing this plugin exists; the host app wires them together through config.
 
-All-in-one SEO for TheMusicDev CakePHP sites: page meta tags, structured data
-(JSON-LD), XML sitemap, robots.txt and redirects. Domain plugins (Recruiting,
-a future blog…) get SEO without knowing this plugin exists; the host app wires
-them together through config.
+Requires PHP 8.2+ and CakePHP 5.2+. Design record: [`docs/seo-plugin-design.md`](docs/seo-plugin-design.md);
+build-time decisions and gotchas: [`docs/decisions.md`](docs/decisions.md).
 
 ## Install
 
-1. composer path repo + `require themusicdev/cakephp-seo ^0.1`
-2. `config/plugins.php`: `'TheMusicDev/Seo' => []`
-3. `bin/cake migrations migrate -p TheMusicDev/Seo` (the test database is
-   migrated by the host's `tests/bootstrap.php`)
+```bash
+composer require themusicdev/seo
+bin/cake plugin load TheMusicDev/Seo
+bin/cake migrations migrate -p TheMusicDev/Seo
+```
+
+Then add the redirects middleware in `Application::middleware()`, after any asset/trailing-slash middleware and
+**before routing** (see "Redirects and 410" below), put `$this->Seo->head()` in your layout (see "Head tags"),
+register your subjects (below), and run `bin/cake seo rebuild`.
 
 ## Configure (host `config/app.php`)
 
 ```php
 'Seo' => ['subjects' => [
     // subject key (a table alias for table-backed subjects) => host subject class
-    'TheMusicDev/Recruiting.JobPostings' => \App\Seo\JobPostingSubject::class,
+    'Articles' => \App\Seo\ArticleSubject::class,
 ]],
 ```
 
@@ -33,13 +35,16 @@ title, description, lastmod). Table-backed subjects extend `TableSubject` and
 implement two methods:
 
 ```php
-final class JobPostingSubject extends TableSubject
+final class ArticleSubject extends TableSubject
 {
     protected function query(Table $table): SelectQuery { return $table->find('published'); }
 
     protected function pageFor(EntityInterface $row): PageData
     {
-        return new PageData(path: '/careers/' . $row->get('slug') . '/', title: $row->get('title'));
+        return new PageData(
+            path: Router::url(['_name' => 'articles.view', 'slug' => $row->get('slug')]),
+            title: $row->get('title'),
+        );
     }
 }
 ```
@@ -70,7 +75,7 @@ does not know).
 `bin/cake seo sync <subject> <id>` re-indexes **one row** with the same rules as a
 rebuild — a changed path records a redirect, a row that stopped being public goes
 `gone` (410), a republished one revives — and touches nothing else. The subject is the
-`Seo.subjects` key (`TheMusicDev/Recruiting.JobPostings`, `static`), the id its primary
+`Seo.subjects` key (`Articles`, `static`), the id its primary
 key. It exits non-zero on an unknown subject or when the row's new path is held by a
 *live* page of another row (a swap or a clash: only `seo rebuild` can settle that; a path
 held by a `gone` page is reused). The nightly rebuild stays the source of truth.
@@ -81,7 +86,7 @@ queue it from wherever the host saves (an admin action, a model event):
 ```php
 $this->fetchTable('Queue.QueuedJobs')->createJob('Queue.Execute', [
     'command' => 'bin/cake',
-    'params' => ['seo', 'sync', 'TheMusicDev/Recruiting.JobPostings', (string)$job->id],
+    'params' => ['seo', 'sync', 'Articles', (string)$article->id],
 ]);
 ```
 
@@ -117,8 +122,8 @@ first of: the `seoOverride` view variable → the page row → the `metaTitle` /
 ```php
 // A page that is not a row (page 2 of a list, a filtered list) says what differs:
 $this->set('seoOverride', [
-    'title' => 'Careers — page 2',
-    'canonical' => Router::url(['_name' => 'careers', '?' => ['page' => 2]], true),
+    'title' => 'Articles — page 2',
+    'canonical' => Router::url(['_name' => 'articles', '?' => ['page' => 2]], true),
     'robots' => 'noindex,follow',          // also: description, ogType, ogImage
 ]);
 ```
@@ -214,7 +219,7 @@ with the `JSON_HEX_*` flags so no value can close the script block.
 
 The plugin stores and lists paths **exactly as your subjects return them** and never
 normalizes them. So: pick one URL form (we use no trailing slash), **build every
-path with the router** (`Router::url(['_name' => 'careers.view', 'slug' => $slug])`,
+path with the router** (`Router::url(['_name' => 'articles.view', 'slug' => $slug])`,
 never typed by hand), and make the host redirect the other form — see
 `TheMusicDev/TrailingSlash`. Redirecting is host policy, not this plugin's job. The one
 rule that matters here: a page's stored path, its sitemap URL and its canonical tag

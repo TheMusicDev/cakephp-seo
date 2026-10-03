@@ -1,5 +1,8 @@
 # SEO plugin — design tracker
 
+> **Status at 1.0.0:** this is the design record, kept as written: the decisions below are built (see
+> `delivery-plan.md`, F1–F8). Build-time decisions and gotchas are in `decisions.md`; usage is in the README.
+
 Living document. Its job is to record **what we agreed**, **what is only
 proposed**, and **what is still open**, so nothing gets re-litigated or
 forgotten. Update the status of an item when a decision is made; move the

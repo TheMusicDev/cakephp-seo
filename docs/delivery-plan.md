@@ -6,7 +6,7 @@ something you can see. The *what* and *why* live in
 [`seo-plugin-design.md`](seo-plugin-design.md) (A = agreed decision, G = gap,
 S = solution, D = deferred); this file is only the *order and slicing*.
 
-Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8, F2 and F3 kept as separate changes). F1–F8 are built (see `decisions.md`); what remains is the release checklist in §4.
+Status of the plan itself: **order approved 2026-09-30** (F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8, F2 and F3 kept as separate changes). F1–F8 are built (see `decisions.md`); the release checklist in §4 is done as of 1.0.0.
 
 ## 1. Principles
 
@@ -258,14 +258,13 @@ README recipe works end-to-end against a worker in the dev stack.
 
 ## 4. Release checklist (after F8)
 
-- [ ] Plugin README complete (install, configure, `Seo.subjects` examples,
-      the two host classes, the middleware wiring, gotchas).
-- [ ] Reasoning moved from the tracker into `docs/decisions.md`, tracker
-      reduced to a pointer as with the other plugins.
-- [ ] org conventions (`cakephp-conventions`, `plugins.md`) plugin entry; CLAUDE.md Seo entry updated.
-- [ ] `composer.json` version bumped from 0.1.0 to 1.0.0 (path repo, like the
-      others).
-- [ ] Root README perf/config sections mention the Seo keys.
+- [x] Plugin README complete (install, configure, `Seo.subjects` examples, the host classes, the middleware wiring,
+      gotchas), written for a standalone package.
+- [x] Build-time reasoning is in `docs/decisions.md`; the design tracker is kept as the design record with a status
+      note instead of being reduced to a pointer.
+- [x] Extracted to its own repo (`TheMusicDev/cakephp-seo`), MIT, Composer package `themusicdev/seo`; the org
+      conventions record the plugin pattern.
+- [x] Version `1.0.0` is the first git tag (no `version` key in `composer.json`).
 
 ## 5. After v1 (not planned yet)
 
