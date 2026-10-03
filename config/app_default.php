@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * TheMusicDev/Seo ship-with defaults. Merged UNDER host values by the
  * plugin's config/bootstrap.php — hosts win (IdentityBridge convention,
- * docs/conventions.md).
+ * cakephp-conventions: plugins.md).
  *
  * `subjects` is intentionally empty: the host decides which tables are
  * public pages and where they are routed (docs/seo-plugin-design.md, A3).
