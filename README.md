@@ -138,6 +138,22 @@ Site-wide defaults (host `config/app.php`):
 ]],
 ```
 
+**Extra meta tags on every page** (site verification and the like) go in `Seo.site.meta`: a list of tags, each with
+exactly one of `name`, `property`, `http-equiv` or `itemprop`, plus `content`:
+
+```php
+'Seo' => ['site' => ['meta' => [
+    ['name' => 'google-site-verification', 'content' => env('GSC_TOKEN')],
+    ['name' => 'msvalidate.01', 'content' => 'BING-TOKEN'],
+    ['name' => 'google-adsense-account', 'content' => 'ca-pub-0000000000000000'],
+]]],
+```
+
+They print after the Open Graph and Twitter tags and before the JSON-LD, in config order, on **every host** (a
+verification tag is harmless on staging). A blank `content`, such as an unset `env()`, skips that tag; a malformed
+entry **throws**, so a typo is caught in development. The helper already prints the description, robots, `og:*`
+and `twitter:*` tags, so do not repeat those here.
+
 Subjects set `ogType` / `ogImage` per page in `PageData`. The canonical is a real
 `<link rel="canonical">`. **Titles and descriptions come from the page index, so run
 `bin/cake seo rebuild` on deploy, before traffic** — before the first rebuild a page

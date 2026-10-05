@@ -24,6 +24,9 @@ return [
             'imageHeight' => null,
             'imageType' => null,
             'twitterCard' => 'summary_large_image',
+            // Extra <meta> tags on every page, e.g. site verification:
+            // [['name' => 'google-site-verification', 'content' => env('GSC_TOKEN')]]. A blank content skips the tag.
+            'meta' => [],
             // Site-wide JSON-LD nodes (Organization, WebSite…) added to every page's
             // @graph; build them with TheMusicDev\Seo\Schema\Schema.
             'schema' => [],

@@ -8,6 +8,8 @@ use Cake\Http\ServerRequest;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 use Cake\View\View;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use TheMusicDev\Seo\Model\Entity\SeoPage;
 use TheMusicDev\Seo\Model\Table\SeoPagesTable;
 use TheMusicDev\Seo\View\Helper\SeoHelper;
@@ -408,5 +410,97 @@ final class SeoHelperTest extends TestCase
         $head = $this->head('/attached', ['seoPage' => ['Blog.Posts', 9]], $attached);
 
         $this->assertStringContainsString('<title>Chosen — Acme</title>', $head);
+    }
+
+    /**
+     * @param list<mixed> $meta
+     */
+    private function siteMeta(array $meta): string
+    {
+        Configure::write('Seo.site.meta', $meta);
+
+        return $this->head('/nowhere');
+    }
+
+    public function testSiteMetaTagsAreEmittedInConfigOrderOnAPageWithNoRow(): void
+    {
+        $head = $this->siteMeta([
+            ['name' => 'google-site-verification', 'content' => 'abc123'],
+            ['name' => 'msvalidate.01', 'content' => 'BING9'],
+            ['property' => 'fb:app_id', 'content' => '42'],
+            ['http-equiv' => 'x-ua-compatible', 'content' => 'IE=edge'],
+            ['itemprop' => 'image', 'content' => 'https://x.test/i.png'],
+        ]);
+
+        $this->assertStringContainsString('<meta name="google-site-verification" content="abc123">', $head);
+        $this->assertStringContainsString('<meta property="fb:app_id" content="42">', $head);
+        $this->assertStringContainsString('<meta http-equiv="x-ua-compatible" content="IE=edge">', $head);
+        $this->assertStringContainsString('<meta itemprop="image" content="https://x.test/i.png">', $head);
+        $this->assertLessThan(strpos($head, 'msvalidate.01'), strpos($head, 'google-site-verification'));
+    }
+
+    public function testSiteMetaComesBeforeTheStructuredData(): void
+    {
+        Configure::write('Seo.site.schema', [['@type' => 'Organization', 'name' => 'Acme']]);
+
+        $head = $this->siteMeta([['name' => 'google-site-verification', 'content' => 'abc123']]);
+
+        $this->assertLessThan(strpos($head, 'application/ld+json'), strpos($head, 'google-site-verification'));
+    }
+
+    public function testSiteMetaWithBlankOrNullContentIsSkipped(): void
+    {
+        $head = $this->siteMeta([
+            ['name' => 'unset-env', 'content' => null],
+            ['name' => 'blank', 'content' => '  '],
+            ['name' => 'no-content-key'],
+            ['name' => 'kept', 'content' => 0],
+        ]);
+
+        $this->assertStringNotContainsString('unset-env', $head);
+        $this->assertStringNotContainsString('name="blank"', $head);
+        $this->assertStringNotContainsString('no-content-key', $head);
+        $this->assertStringContainsString('<meta name="kept" content="0">', $head);
+    }
+
+    public function testASiteMetaValueCannotBreakOutOfItsAttribute(): void
+    {
+        $head = $this->siteMeta([['name' => 'v', 'content' => '"><script>alert(1)</script>']]);
+
+        $this->assertStringNotContainsString('<script>alert', $head);
+        $this->assertStringContainsString('&quot;&gt;&lt;script&gt;', $head);
+    }
+
+    public function testNoSiteMetaMeansNoExtraTags(): void
+    {
+        $this->assertSame(
+            substr_count($this->head('/nowhere'), '<meta'),
+            substr_count($this->siteMeta([]), '<meta'),
+        );
+    }
+
+    /**
+     * @return array<string, array{0: mixed, 1: string}>
+     */
+    public static function badSiteMeta(): array
+    {
+        return [
+            'an entry that is not an array' => ['google=abc', 'Seo.site.meta[0] must be an array'],
+            'no naming attribute' => [['content' => 'x'], 'needs exactly one of name, property, http-equiv, itemprop'],
+            'two naming attributes' => [['name' => 'a', 'property' => 'b', 'content' => 'x'], 'exactly one of'],
+            'an unknown attribute' => [['name' => 'a', 'onload' => 'x', 'content' => 'x'], 'exactly one of'],
+            'a name with a quote' => [['name' => 'a"b', 'content' => 'x'], 'must be a meta tag name'],
+            'a name that is not a string' => [['name' => ['a'], 'content' => 'x'], 'must be a meta tag name'],
+            'a content that is an array' => [['name' => 'a', 'content' => ['x']], 'content must be a string, number or null'],
+        ];
+    }
+
+    #[DataProvider('badSiteMeta')]
+    public function testAMalformedSiteMetaEntryThrows(mixed $entry, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $this->siteMeta([$entry]);
     }
 }
