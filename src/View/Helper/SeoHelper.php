@@ -8,6 +8,7 @@ use Cake\ORM\Locator\LocatorAwareTrait;
 use Cake\Routing\Asset;
 use Cake\Routing\Router;
 use Cake\View\Helper;
+use InvalidArgumentException;
 use TheMusicDev\Seo\Model\Entity\SeoPage;
 
 /**
@@ -43,6 +44,9 @@ class SeoHelper extends Helper
      * @var array<int|string, string|array<string, mixed>>
      */
     protected array $helpers = ['Html'];
+
+    /** The attribute that names a meta tag; an entry of `Seo.site.meta` has exactly one of them, plus `content`. */
+    private const META_KEYS = ['name', 'property', 'http-equiv', 'itemprop'];
 
     private ?SeoPage $page = null;
 
@@ -109,12 +113,59 @@ class SeoHelper extends Helper
             $tags[] = $html->meta(['name' => 'twitter:image', 'content' => $imageUrl]);
         }
 
+        array_push($tags, ...$this->siteMeta((array)($site['meta'] ?? [])));
+
         $nodes = $this->nodes((array)($site['schema'] ?? []), $page);
         if ($nodes !== []) {
             $tags[] = $this->jsonLd($nodes);
         }
 
         return implode("\n    ", $tags);
+    }
+
+    /**
+     * The `Seo.site.meta` tags: one `<meta>` per entry, in config order.
+     *
+     * An entry is code in the host's config, so a malformed one throws (a typo is caught in development). A null or
+     * blank `content` is not a mistake: it is how an unset environment variable shows up, and that tag is skipped.
+     *
+     * @param array<array-key, mixed> $entries Each `['name'|'property'|'http-equiv'|'itemprop' => …, 'content' => …]`.
+     * @return list<string>
+     * @throws \InvalidArgumentException On a malformed entry.
+     */
+    private function siteMeta(array $entries): array
+    {
+        $tags = [];
+        foreach (array_values($entries) as $index => $entry) {
+            $where = "Seo.site.meta[{$index}]";
+            if (!is_array($entry)) {
+                throw new InvalidArgumentException("{$where} must be an array.");
+            }
+            $content = $entry['content'] ?? null;
+            unset($entry['content']);
+            $key = array_key_first($entry);
+            if (count($entry) !== 1 || !in_array($key, self::META_KEYS, true)) {
+                throw new InvalidArgumentException(
+                    "{$where} needs exactly one of " . implode(', ', self::META_KEYS) . ', plus content.',
+                );
+            }
+            $name = $entry[$key];
+            if (!is_string($name) || preg_match('/^[A-Za-z][A-Za-z0-9._:-]*$/', $name) !== 1) {
+                throw new InvalidArgumentException(
+                    "{$where}.{$key} must be a meta tag name such as 'google-site-verification' "
+                    . '(a letter, then letters, digits and . _ : -).',
+                );
+            }
+            if ($content !== null && !is_string($content) && !is_int($content) && !is_float($content)) {
+                throw new InvalidArgumentException("{$where}.content must be a string, number or null.");
+            }
+            $value = trim((string)$content);
+            if ($value !== '') {
+                $tags[] = (string)$this->Html->meta([$key => $name, 'content' => $value]);
+            }
+        }
+
+        return $tags;
     }
 
     /**

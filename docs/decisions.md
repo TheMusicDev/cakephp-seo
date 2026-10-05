@@ -431,6 +431,12 @@ site has that many pages.
   added (Files' `src/` is; Recruiting and Contact are **not**). Adding it
   surfaced missing docblocks and an entity type that a "green" run had never
   checked. A new plugin must be added to both files.
+- **Site-wide extra meta tags: `Seo.site.meta`** (2026-10-05, maintainer's decision: the head belongs to Seo, so this
+  is not a separate plugin and not the Analytics plugin). A list of attribute entries (`name` | `property` | `http-equiv`
+  | `itemprop`, plus `content`) rather than `name => value`, because Open Graph and `http-equiv` tags do not use `name`.
+  Printed on every host (unlike the Analytics tags): a verification tag does no harm on staging. Blank content skips the
+  tag (unset env var); anything malformed throws, like the Analytics config. Not done on purpose: refusing names the
+  helper prints itself (`description`, `robots`, `og:*`, `twitter:*`); the README says not to repeat them.
 - **`DATETIME` keeps whole seconds; PHP dates do not.** A subject's `lastmod`
   of `now()` (e.g. an entity's `modified` with microseconds) never equals the
   stored value, so every rebuild reported an "update". `PageIndexer` truncates
